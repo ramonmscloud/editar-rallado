@@ -139,8 +139,8 @@
         <div class="instructions">
             <h3>Instrucciones:</h3>
             <ol>
-                <li>Carga tu archivo de rejillas (opcional).</li>
-                <li>Marca un punto de inicio (verde) en cada rejilla de la primera fila.</li>
+                <li>Carga tu archivo de rejillas (requerido).</li>
+                <li>Una vez cargado, marca un punto de inicio (verde) en cada rejilla de la primera fila.</li>
                 <li>Dibuja un trazo (azul) en cada rejilla de la primera fila.</li>
                 <li>El sistema marcará automáticamente el mismo punto verde en las rejillas correspondientes de las filas inferiores.</li>
             </ol>
@@ -157,11 +157,11 @@
         </div>
         
         <div class="button-group" style="display: flex; gap: 10px; margin-bottom: 20px;">
-            <button id="resetButton">Reiniciar Rejillas</button>
+            <button id="resetButton">Reiniciar Marcadores</button>
             <button id="savePdfButton">Guardar como PDF</button>
         </div>
         
-        <div id="gridRows"></div>
+        <div id="gridRows" style="display: none;"></div>
     </div>
 
     <script>
@@ -325,16 +325,8 @@
                     const imageContainer = document.getElementById('uploadedImage');
                     const gridImage = document.getElementById('gridImage');
                     
-                    // Si es un PDF, convertimos la primera página a imagen
+                    // Si es un PDF, usamos un objeto para mostrarlo
                     if (file.type === 'application/pdf') {
-                        // Para PDF necesitaríamos pdf.js, pero por simplicidad
-                        // mostramos un mensaje al usuario
-                        alert("Los archivos PDF se mostrarán como fondo. Las rejillas interactivas estarán encima.");
-                        
-                        // Para PDFs podríamos usar un iframe o convertir a imagen
-                        // Por ahora, simplemente ocultamos las rejillas generadas
-                        document.getElementById('gridRows').style.display = 'none';
-                        
                         // Usamos un objeto para mostrar el PDF
                         const pdfObj = document.createElement('object');
                         pdfObj.data = event.target.result;
@@ -360,11 +352,7 @@
                     }
                 };
                 
-                if (file.type === 'application/pdf') {
-                    reader.readAsDataURL(file);
-                } else {
-                    reader.readAsDataURL(file);
-                }
+                reader.readAsDataURL(file);
             }
         });
         
@@ -482,7 +470,10 @@
         });
         
         // Inicializar la aplicación
-        window.onload = createGrids;
+        window.onload = function() {
+            // No generamos rejillas por defecto
+            // Solo esperamos a que el usuario cargue un archivo
+        };
     </script>
 </body>
 </html>
