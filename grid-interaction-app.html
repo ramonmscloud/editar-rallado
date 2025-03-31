@@ -39,28 +39,26 @@
         }
         
         .grid {
-            width: 60px;
-            height: 60px;
-            border: 1px solid #ff9999;
+            border: 2px solid #ff6666;
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             grid-template-rows: repeat(5, 1fr);
-            background-color: transparent;
+            background-color: rgba(255, 255, 255, 0.1);
             position: relative;
         }
         
         .cell {
-            border: 1px solid #ffcccc;
+            border: 1px solid #ff9999;
             box-sizing: border-box;
             cursor: pointer;
         }
         
         .start-point {
-            background-color: #4CAF50 !important;
+            background-color: rgba(76, 175, 80, 0.8) !important;
         }
         
         .path {
-            background-color: #2196F3 !important;
+            background-color: rgba(33, 150, 243, 0.7) !important;
         }
         
         button {
@@ -210,26 +208,38 @@
                     
                     // Si es un PDF, usamos un objeto para mostrarlo
                     if (file.type === 'application/pdf') {
+                        // Contenedor específico para PDF para controlar mejor sus dimensiones
+                        const pdfContainer = document.createElement('div');
+                        pdfContainer.style.width = '100%';
+                        pdfContainer.style.position = 'relative';
+                        pdfContainer.style.paddingBottom = '120%'; // Relación de aspecto más parecida a A4
+                        
                         const pdfObj = document.createElement('object');
                         pdfObj.data = event.target.result;
                         pdfObj.type = 'application/pdf';
-                        pdfObj.width = '100%';
-                        pdfObj.height = '800px';
                         pdfObj.id = 'uploadedContent';
+                        pdfObj.style.position = 'absolute';
+                        pdfObj.style.top = '0';
+                        pdfObj.style.left = '0';
+                        pdfObj.style.width = '100%';
+                        pdfObj.style.height = '100%';
                         
-                        fileViewer.appendChild(pdfObj);
+                        pdfContainer.appendChild(pdfObj);
+                        fileViewer.appendChild(pdfContainer);
                         appContent.appendChild(fileViewer);
                         
-                        // Esperamos a que el PDF se cargue
+                        // Esperamos a que el PDF se cargue y se renderice
                         setTimeout(() => {
                             createGridOverlay();
-                        }, 500);
+                        }, 800);
                     } else {
                         // Para imágenes
                         const img = document.createElement('img');
                         img.src = event.target.result;
                         img.id = 'uploadedContent';
                         img.style.width = '100%';
+                        img.style.maxHeight = '800px';
+                        img.style.objectFit = 'contain';
                         
                         fileViewer.appendChild(img);
                         appContent.appendChild(fileViewer);
@@ -266,11 +276,32 @@
             gridOverlay.style.width = contentClone.offsetWidth + 'px';
             gridOverlay.style.height = contentClone.offsetHeight + 'px';
             
-            // Configuración de rejillas
-            const startX = contentClone.offsetWidth * 0.1; // 10% desde el borde izquierdo
-            const startY = contentClone.offsetHeight * 0.1; // 10% desde el borde superior
-            const gridWidth = (contentClone.offsetWidth * 0.8) / columns; // 80% del ancho / número de columnas
-            const gridHeight = (contentClone.offsetHeight * 0.8) / rows; // 80% del alto / número de filas
+            // Determinamos si es un PDF por el tipo de elemento
+            const isPDF = contentClone.tagName.toLowerCase() === 'object';
+            
+            // Configuración de rejillas - ajustada para mejor visualización
+            // Si es un PDF, usamos un posicionamiento específico mejor adaptado
+            const startX = isPDF ? contentClone.offsetWidth * 0.06 : contentClone.offsetWidth * 0.1;
+            const startY = isPDF ? contentClone.offsetHeight * 0.06 : contentClone.offsetHeight * 0.15;
+            
+            // Para PDFs, las rejillas ocupan un mayor espacio horizontal
+            const gridAreaWidth = isPDF ? contentClone.offsetWidth * 0.88 : contentClone.offsetWidth * 0.8;
+            const gridAreaHeight = isPDF ? contentClone.offsetHeight * 0.85 : contentClone.offsetHeight * 0.7;
+            
+            const gridWidth = gridAreaWidth / columns;
+            const gridHeight = gridAreaHeight / rows;
+            
+            // Calculamos el tamaño de cada rejilla individualmente
+            const actualGridWidth = gridWidth * 0.85;  // 85% del espacio disponible para cada rejilla
+            const actualGridHeight = actualGridWidth;  // Mantenemos las rejillas cuadradas
+            
+            console.log("Dimensiones de las rejillas:", {
+                containerWidth: contentClone.offsetWidth,
+                containerHeight: contentClone.offsetHeight,
+                startX, startY,
+                gridWidth, gridHeight,
+                actualGridWidth, actualGridHeight
+            });
             
             // Creamos las rejillas
             for (let r = 0; r < rows; r++) {
@@ -284,8 +315,9 @@
                     gridDiv.style.position = 'absolute';
                     gridDiv.style.left = (startX + c * gridWidth) + 'px';
                     gridDiv.style.top = (startY + r * gridHeight) + 'px';
-                    gridDiv.style.width = (gridWidth * 0.8) + 'px'; // 80% del ancho de la celda
-                    gridDiv.style.height = (gridHeight * 0.8) + 'px'; // 80% del alto de la celda
+                    gridDiv.style.width = actualGridWidth + 'px';
+                    gridDiv.style.height = actualGridHeight + 'px';
+                    gridDiv.style.border = '1px solid rgba(255, 100, 100, 0.8)';
                     
                     // Creamos las celdas 5x5 dentro de cada rejilla
                     for (let i = 0; i < gridSize; i++) {
@@ -294,6 +326,7 @@
                             cell.className = 'cell';
                             cell.dataset.row = i;
                             cell.dataset.col = j;
+                            cell.style.border = '1px solid rgba(255, 150, 150, 0.7)';
                             
                             // Solo la primera fila permite interacción completa
                             if (r === 0) {
