@@ -40,14 +40,15 @@
         
         .grid {
             border: 2px solid #ff6666;
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            grid-template-rows: repeat(5, 1fr);
-            background-color: rgba(255, 255, 255, 0.1);
             position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.1);
+            box-sizing: border-box;
         }
         
         .cell {
+            position: absolute;
             border: 1px solid #ff9999;
             box-sizing: border-box;
             cursor: pointer;
@@ -178,6 +179,51 @@
             pointer-events: none;
             z-index: 50;
         }
+        
+        /* Estilos para el control de dimensión */
+        .dimension-control {
+            background-color: #f0f8ff;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #gridDimensionInput {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .help-text {
+            font-size: 0.85em;
+            color: #666;
+            margin-left: 10px;
+        }
+
+        .quick-dimension-select {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            margin-top: 5px;
+        }
+
+        .quick-dimension-select button {
+            background-color: #e0e0e0;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            padding: 2px 5px;
+            font-size: 0.85em;
+            cursor: pointer;
+        }
+
+        .quick-dimension-select button:hover {
+            background-color: #d0d0d0;
+        }
     </style>
 </head>
 <body>
@@ -188,7 +234,7 @@
             <h3>Instrucciones:</h3>
             <ol>
                 <li>Carga tu archivo de rejillas (requerido).</li>
-                <li>El sistema intentará detectar automáticamente las rejillas en tu archivo.</li>
+                <li>Configura la dimensión de las rejillas según tu archivo (ej: 5x5, 20x20).</li>
                 <li>Una vez cargado, marca un punto de inicio (verde) en cada rejilla de la primera fila.</li>
                 <li>Dibuja un trazo (azul) en cada rejilla de la primera fila.</li>
                 <li>El sistema marcará automáticamente el mismo punto verde en las rejillas correspondientes de las filas inferiores.</li>
@@ -199,6 +245,20 @@
             <label class="file-label" for="gridFile">Cargar archivo de rejillas</label>
             <input type="file" id="gridFile" accept=".pdf,.jpg,.jpeg,.png">
             <span class="status" id="fileStatus">Ningún archivo cargado</span>
+        </div>
+        
+        <div id="dimensionControls" style="display: none;" class="dimension-control">
+            <label for="gridDimensionInput">Dimensión de rejilla:</label>
+            <input type="number" id="gridDimensionInput" value="5" min="2" max="50">
+            <button id="applyDimensionBtn">Aplicar</button>
+            <span class="help-text">La dimensión indica el número de celdas por lado en cada rejilla.</span>
+            <div class="quick-dimension-select">
+                <span>Dimensiones comunes:</span>
+                <button data-dim="5">5×5</button>
+                <button data-dim="10">10×10</button>
+                <button data-dim="15">15×15</button>
+                <button data-dim="20">20×20</button>
+            </div>
         </div>
         
         <div class="detection-controls" id="detectionControls" style="display: none;">
@@ -224,7 +284,7 @@
         // Configuración inicial
         const rows = 13;
         const columns = 9;
-        const gridSize = 5;
+        let gridDimension = 5; // Dimensión dinámica (por defecto 5x5)
         
         // Estado de la aplicación
         let firstRowStartPoints = Array(columns).fill(null);
@@ -391,7 +451,7 @@
                     return a.y - b.y;
                 });
                 
-                // Intentar detectar rejillas de 5x5
+                // Intentar detectar rejillas cuadradas
                 const potentialGrids = [];
                 const visitedIntersections = new Set();
                 
@@ -408,8 +468,8 @@
                         topLeft: startPoint,
                         width: 0,
                         height: 0,
-                        rows: 5,
-                        cols: 5
+                        rows: gridDimension,
+                        cols: gridDimension
                     };
                     
                     // Buscar el siguiente punto a la derecha (aproximadamente misma y, mayor x)
@@ -426,13 +486,11 @@
                     // Ordenar por distancia al punto inicial
                     rightPoints.sort((a, b) => distance(startPoint, a.point) - distance(startPoint, b.point));
                     
-                    // Necesitamos 5 puntos adicionales para una rejilla 5x5
-                    if (rightPoints.length >= 5) {
-                        rightPoints = rightPoints.slice(0, 5);
-                        
-                        // Calcular el ancho promedio de celda
-                        let totalWidth = rightPoints[rightPoints.length - 1].point.x - startPoint.x;
-                        grid.width = totalWidth;
+                    // Necesitamos al menos un punto más a la derecha
+                    if (rightPoints.length >= 1) {
+                        // Usar el punto más lejano a la derecha para determinar el ancho
+                        const furthestRight = rightPoints[rightPoints.length - 1].point;
+                        grid.width = furthestRight.x - startPoint.x;
                         
                         // Ahora buscamos puntos hacia abajo para determinar la altura
                         let downPoints = [];
@@ -448,18 +506,16 @@
                         // Ordenar por distancia al punto inicial
                         downPoints.sort((a, b) => distance(startPoint, a.point) - distance(startPoint, b.point));
                         
-                        // Necesitamos 5 puntos hacia abajo para una rejilla 5x5
-                        if (downPoints.length >= 5) {
-                            downPoints = downPoints.slice(0, 5);
-                            
-                            // Calcular la altura total
-                            let totalHeight = downPoints[downPoints.length - 1].point.y - startPoint.y;
-                            grid.height = totalHeight;
+                        // Necesitamos al menos un punto más hacia abajo
+                        if (downPoints.length >= 1) {
+                            // Usar el punto más bajo para determinar la altura
+                            const furthestDown = downPoints[downPoints.length - 1].point;
+                            grid.height = furthestDown.y - startPoint.y;
                             
                             // Si las proporciones son razonables, consideramos que es una rejilla válida
-                            // Verificar que el aspecto sea aproximadamente cuadrado (rejilla 5x5)
+                            // Verificar que el aspecto sea aproximadamente cuadrado
                             const aspectRatio = grid.width / grid.height;
-                            if (aspectRatio > 0.8 && aspectRatio < 1.2) {
+                            if (aspectRatio > 0.8 && aspectRatio < 1.2 && grid.width > 20 && grid.height > 20) {
                                 potentialGrids.push(grid);
                                 
                                 // Marcar estas intersecciones como visitadas
@@ -495,6 +551,60 @@
             });
         }
         
+        // Configurar controlador de dimensión de rejilla
+        function setupDimensionControls() {
+            // Mostrar controles de dimensión
+            document.getElementById('dimensionControls').style.display = 'flex';
+            
+            // Configurar eventos para los botones de selección rápida
+            document.querySelectorAll('.quick-dimension-select button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const dimension = parseInt(this.dataset.dim);
+                    document.getElementById('gridDimensionInput').value = dimension;
+                });
+            });
+            
+            // Configurar evento para el botón aplicar
+            document.getElementById('applyDimensionBtn').addEventListener('click', function() {
+                const newDimension = parseInt(document.getElementById('gridDimensionInput').value);
+                if (newDimension >= 2 && newDimension <= 50) {
+                    gridDimension = newDimension;
+                    
+                    // Si ya hay un archivo cargado, regenerar las rejillas
+                    const fileViewer = document.querySelector('.file-viewer');
+                    if (fileViewer) {
+                        // Eliminar rejillas existentes
+                        const existingOverlay = document.querySelector('.grid-overlay');
+                        if (existingOverlay) {
+                            existingOverlay.remove();
+                        }
+                        
+                        // Reiniciar estado
+                        firstRowStartPoints = Array(columns).fill(null);
+                        paths = Array(rows).fill().map(() => Array(columns).fill().map(() => []));
+                        
+                        // Volver a crear rejillas con la nueva dimensión
+                        const debugCanvas = document.querySelector('.grid-debug-view');
+                        if (debugCanvas) {
+                            // Si hay detección activa, recrear usando la detección
+                            const contentElement = document.getElementById('uploadedContent');
+                            if (contentElement) {
+                                processImageWithGridDetection(contentElement, fileViewer);
+                            }
+                        } else {
+                            // Sino, usar el método manual
+                            createGridOverlay();
+                        }
+                        
+                        // Mostrar confirmación
+                        alert(`Dimensión de rejilla ajustada a ${gridDimension}x${gridDimension}`);
+                    }
+                } else {
+                    alert('Por favor, ingrese una dimensión válida entre 2 y 50.');
+                }
+            });
+        }
+        
         // Manejar carga de archivo con detección de rejillas
         document.getElementById('gridFile').addEventListener('change', async function(e) {
             const file = e.target.files[0];
@@ -506,6 +616,9 @@
                 isDrawing = false;
                 
                 document.getElementById('fileStatus').textContent = `Archivo cargado: ${file.name}`;
+                
+                // Mostrar controles de dimensión
+                setupDimensionControls();
                 
                 // Mostrar mensaje de procesamiento
                 const appContent = document.getElementById('appContent');
@@ -624,6 +737,12 @@
                         existingOverlay.remove();
                     }
                     
+                    // Quitar el canvas de debug si existe
+                    const debugCanvas = document.querySelector('.grid-debug-view');
+                    if (debugCanvas) {
+                        debugCanvas.remove();
+                    }
+                    
                     // Usar método original
                     createGridOverlay();
                 });
@@ -702,144 +821,32 @@
                     gridDiv.dataset.row = r;
                     gridDiv.dataset.col = c;
                     
-                    gridDiv.style.position = 'absolute';
-                    gridDiv.style.left = grid.topLeft.x + 'px';
-                    gridDiv.style.top = grid.topLeft.y + 'px';
-                    gridDiv.style.width = grid.width + 'px';
-                    gridDiv.style.height = grid.height + 'px';
-                    
-                    // Crear las celdas 5x5 dentro de cada rejilla
-                    const cellWidth = grid.width / 5;
-                    const cellHeight = grid.height / 5;
-                    
-                    for (let i = 0; i < 5; i++) {
-                        for (let j = 0; j < 5; j++) {
-                            const cell = document.createElement('div');
-                            cell.className = 'cell';
-                            cell.dataset.row = i;
-                            cell.dataset.col = j;
-                            
-                            // Solo la primera fila permite interacción completa
-                            if (r === 0) {
-                                cell.addEventListener('mousedown', startDrawing);
-                                cell.addEventListener('mousemove', draw);
-                                cell.addEventListener('mouseup', stopDrawing);
-                                cell.addEventListener('mouseleave', leaveCell);
-                            }
-                            
-                            gridDiv.appendChild(cell);
-                        }
-                    }
-                    
-                    gridOverlay.appendChild(gridDiv);
-                }
-            }
-            
-            container.appendChild(gridOverlay);
-            
-            // Actualizar los marcadores
-            updateGrids();
-        }
-        
-        // Crear rejillas método original
-        function createGridOverlay() {
-            // Obtenemos el contenedor y el elemento visualizado
-            const fileViewer = document.querySelector('.file-viewer');
-            const uploadedContent = document.getElementById('uploadedContent');
-            
-            if (!fileViewer || !uploadedContent) return;
-            
-            // Verificar si es un iframe (PDF)
-            const isPDF = uploadedContent.tagName.toLowerCase() === 'iframe';
-            
-            // Determinamos el elemento donde se crearán las rejillas
-            let targetElement = fileViewer;
-            
-            // Si es un iframe (PDF), necesitamos un enfoque diferente
-            if (isPDF) {
-                // Para iframe, creamos un div posicionado encima
-                const overlayDiv = document.createElement('div');
-                overlayDiv.style.position = 'absolute';
-                overlayDiv.style.top = uploadedContent.offsetTop + 'px';
-                overlayDiv.style.left = uploadedContent.offsetLeft + 'px';
-                overlayDiv.style.width = uploadedContent.offsetWidth + 'px';
-                overlayDiv.style.height = uploadedContent.offsetHeight + 'px';
-                overlayDiv.style.pointerEvents = 'none'; // Permite interactuar con el PDF
-                
-                // Añadimos este overlay al contenedor
-                if (fileViewer.style.position !== 'relative') {
-                    fileViewer.style.position = 'relative';
-                }
-                
-                fileViewer.appendChild(overlayDiv);
-                targetElement = overlayDiv;
-            }
-            
-            // Creamos el contenedor para las rejillas
-            const gridOverlay = document.createElement('div');
-            gridOverlay.className = 'grid-overlay';
-            gridOverlay.style.position = 'absolute';
-            gridOverlay.style.top = '0';
-            gridOverlay.style.left = '0';
-            gridOverlay.style.width = '100%';
-            gridOverlay.style.height = '100%';
-            gridOverlay.style.pointerEvents = 'auto';
-            
-            // Configuramos las dimensiones de las rejillas basándonos en el archivo
-            const docWidth = uploadedContent.offsetWidth;
-            const docHeight = uploadedContent.offsetHeight;
-            
-            // Para PDFs, ajustamos a la primera página visible
-            const verticalOffset = isPDF ? docHeight * 0.08 : docHeight * 0.05;
-            const horizontalMargin = docWidth * 0.05;
-            
-            // Calculamos área disponible para las rejillas
-            const gridAreaWidth = docWidth - (horizontalMargin * 2);
-            const gridAreaHeight = docHeight - (verticalOffset * 2);
-            
-            // Tamaño de cada rejilla individual
-            const gridSize = Math.min(
-                (gridAreaWidth / columns) * 0.7,
-                (gridAreaHeight / rows) * 0.7
-            );
-            
-            // Espaciado horizontal y vertical total disponible
-            const totalHorizontalSpacing = gridAreaWidth - (gridSize * columns);
-            const totalVerticalSpacing = gridAreaHeight - (gridSize * rows);
-            
-            // Espaciado entre rejillas individuales
-            const horizontalSpacing = totalHorizontalSpacing / (columns - 1 + 2); // +2 para márgenes
-            const verticalSpacing = totalVerticalSpacing / (rows - 1 + 2);        // +2 para márgenes
-            
-            // Posición inicial (ajustada con margen)
-            const startX = horizontalMargin + horizontalSpacing;
-            const startY = verticalOffset + verticalSpacing;
-            
-            // Creamos las rejillas
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < columns; c++) {
-                    const gridDiv = document.createElement('div');
-                    gridDiv.className = 'grid';
-                    gridDiv.dataset.row = r;
-                    gridDiv.dataset.col = c;
-                    
                     // Posicionamos cada rejilla
-                    const posX = startX + c * (gridSize + horizontalSpacing);
-                    const posY = startY + r * (gridSize + verticalSpacing);
+                    const posX = startX + c * (rejillaSize + horizontalSpacing);
+                    const posY = startY + r * (rejillaSize + verticalSpacing);
                     
                     gridDiv.style.position = 'absolute';
                     gridDiv.style.left = posX + 'px';
                     gridDiv.style.top = posY + 'px';
-                    gridDiv.style.width = gridSize + 'px';
-                    gridDiv.style.height = gridSize + 'px';
+                    gridDiv.style.width = rejillaSize + 'px';
+                    gridDiv.style.height = rejillaSize + 'px';
                     
-                    // Creamos las celdas 5x5 dentro de cada rejilla
-                    for (let i = 0; i < 5; i++) {
-                        for (let j = 0; j < 5; j++) {
+                    // Creamos las celdas dentro de cada rejilla usando la dimensión dinámica
+                    const cellWidth = rejillaSize / gridDimension;
+                    const cellHeight = rejillaSize / gridDimension;
+                    
+                    for (let i = 0; i < gridDimension; i++) {
+                        for (let j = 0; j < gridDimension; j++) {
                             const cell = document.createElement('div');
                             cell.className = 'cell';
                             cell.dataset.row = i;
                             cell.dataset.col = j;
+                            
+                            // Posicionar cada celda
+                            cell.style.left = (j * cellWidth) + 'px';
+                            cell.style.top = (i * cellHeight) + 'px';
+                            cell.style.width = cellWidth + 'px';
+                            cell.style.height = cellHeight + 'px';
                             
                             // Solo la primera fila permite interacción completa
                             if (r === 0) {
@@ -964,7 +971,7 @@
             
             // Crear un título para el PDF
             const contentDiv = document.createElement('div');
-            contentDiv.innerHTML = '<h2 style="text-align: center; margin-bottom: 20px;">Hoja de Práctica - Cajas 5x5</h2>';
+            contentDiv.innerHTML = '<h2 style="text-align: center; margin-bottom: 20px;">Hoja de Práctica - Rejillas</h2>';
             
             // Ocultar temporalmente la vista de depuración si está visible
             const debugCanvas = document.querySelector('.grid-debug-view');
@@ -991,7 +998,7 @@
                     // Opciones para el PDF
                     const options = {
                         margin: [10, 10],
-                        filename: 'rejillas_5x5.pdf',
+                        filename: 'rejillas_practicas.pdf',
                         image: { type: 'jpeg', quality: 0.98 },
                         html2canvas: { scale: 2, logging: false },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -1013,7 +1020,7 @@
                     // Opciones para el PDF
                     const options = {
                         margin: [10, 10],
-                        filename: 'rejillas_5x5.pdf',
+                        filename: 'rejillas_practicas.pdf',
                         image: { type: 'jpeg', quality: 0.98 },
                         html2canvas: { scale: 2, logging: false },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -1034,3 +1041,130 @@
     </script>
 </body>
 </html>
+                    
+                    gridDiv.style.position = 'absolute';
+                    gridDiv.style.left = grid.topLeft.x + 'px';
+                    gridDiv.style.top = grid.topLeft.y + 'px';
+                    gridDiv.style.width = grid.width + 'px';
+                    gridDiv.style.height = grid.height + 'px';
+                    
+                    // Crear las celdas dentro de cada rejilla usando la dimensión dinámica
+                    const cellWidth = grid.width / gridDimension;
+                    const cellHeight = grid.height / gridDimension;
+                    
+                    for (let i = 0; i < gridDimension; i++) {
+                        for (let j = 0; j < gridDimension; j++) {
+                            const cell = document.createElement('div');
+                            cell.className = 'cell';
+                            cell.dataset.row = i;
+                            cell.dataset.col = j;
+                            
+                            // Posicionar cada celda
+                            cell.style.left = (j * cellWidth) + 'px';
+                            cell.style.top = (i * cellHeight) + 'px';
+                            cell.style.width = cellWidth + 'px';
+                            cell.style.height = cellHeight + 'px';
+                            
+                            // Solo la primera fila permite interacción completa
+                            if (r === 0) {
+                                cell.addEventListener('mousedown', startDrawing);
+                                cell.addEventListener('mousemove', draw);
+                                cell.addEventListener('mouseup', stopDrawing);
+                                cell.addEventListener('mouseleave', leaveCell);
+                            }
+                            
+                            gridDiv.appendChild(cell);
+                        }
+                    }
+                    
+                    gridOverlay.appendChild(gridDiv);
+                }
+            }
+            
+            container.appendChild(gridOverlay);
+            
+            // Actualizar los marcadores
+            updateGrids();
+        }
+        
+        // Crear rejillas método original
+        function createGridOverlay() {
+            // Obtenemos el contenedor y el elemento visualizado
+            const fileViewer = document.querySelector('.file-viewer');
+            const uploadedContent = document.getElementById('uploadedContent');
+            
+            if (!fileViewer || !uploadedContent) return;
+            
+            // Verificar si es un iframe (PDF)
+            const isPDF = uploadedContent.tagName.toLowerCase() === 'iframe';
+            
+            // Determinamos el elemento donde se crearán las rejillas
+            let targetElement = fileViewer;
+            
+            // Si es un iframe (PDF), necesitamos un enfoque diferente
+            if (isPDF) {
+                // Para iframe, creamos un div posicionado encima
+                const overlayDiv = document.createElement('div');
+                overlayDiv.style.position = 'absolute';
+                overlayDiv.style.top = uploadedContent.offsetTop + 'px';
+                overlayDiv.style.left = uploadedContent.offsetLeft + 'px';
+                overlayDiv.style.width = uploadedContent.offsetWidth + 'px';
+                overlayDiv.style.height = uploadedContent.offsetHeight + 'px';
+                overlayDiv.style.pointerEvents = 'none'; // Permite interactuar con el PDF
+                
+                // Añadimos este overlay al contenedor
+                if (fileViewer.style.position !== 'relative') {
+                    fileViewer.style.position = 'relative';
+                }
+                
+                fileViewer.appendChild(overlayDiv);
+                targetElement = overlayDiv;
+            }
+            
+            // Creamos el contenedor para las rejillas
+            const gridOverlay = document.createElement('div');
+            gridOverlay.className = 'grid-overlay';
+            gridOverlay.style.position = 'absolute';
+            gridOverlay.style.top = '0';
+            gridOverlay.style.left = '0';
+            gridOverlay.style.width = '100%';
+            gridOverlay.style.height = '100%';
+            gridOverlay.style.pointerEvents = 'auto';
+            
+            // Configuramos las dimensiones de las rejillas basándonos en el archivo
+            const docWidth = uploadedContent.offsetWidth;
+            const docHeight = uploadedContent.offsetHeight;
+            
+            // Para PDFs, ajustamos a la primera página visible
+            const verticalOffset = isPDF ? docHeight * 0.08 : docHeight * 0.05;
+            const horizontalMargin = docWidth * 0.05;
+            
+            // Calculamos área disponible para las rejillas
+            const gridAreaWidth = docWidth - (horizontalMargin * 2);
+            const gridAreaHeight = docHeight - (verticalOffset * 2);
+            
+            // Tamaño de cada rejilla individual
+            const rejillaSize = Math.min(
+                (gridAreaWidth / columns) * 0.7,
+                (gridAreaHeight / rows) * 0.7
+            );
+            
+            // Espaciado horizontal y vertical total disponible
+            const totalHorizontalSpacing = gridAreaWidth - (rejillaSize * columns);
+            const totalVerticalSpacing = gridAreaHeight - (rejillaSize * rows);
+            
+            // Espaciado entre rejillas individuales
+            const horizontalSpacing = totalHorizontalSpacing / (columns - 1 + 2); // +2 para márgenes
+            const verticalSpacing = totalVerticalSpacing / (rows - 1 + 2);        // +2 para márgenes
+            
+            // Posición inicial (ajustada con margen)
+            const startX = horizontalMargin + horizontalSpacing;
+            const startY = verticalOffset + verticalSpacing;
+            
+            // Creamos las rejillas
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < columns; c++) {
+                    const gridDiv = document.createElement('div');
+                    gridDiv.className = 'grid';
+                    gridDiv.dataset.row = r;
+                    gridDiv.dataset.col = c;
