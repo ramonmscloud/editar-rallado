@@ -208,11 +208,12 @@
                     
                     // Si es un PDF, usamos un objeto para mostrarlo
                     if (file.type === 'application/pdf') {
-                        // Contenedor específico para PDF para controlar mejor sus dimensiones
+                        // Para PDFs, intentamos mantener la proporción exacta de A4
                         const pdfContainer = document.createElement('div');
                         pdfContainer.style.width = '100%';
                         pdfContainer.style.position = 'relative';
-                        pdfContainer.style.paddingBottom = '120%'; // Relación de aspecto más parecida a A4
+                        pdfContainer.style.paddingBottom = '141.4%'; // Proporción A4 (1:√2)
+                        pdfContainer.style.overflow = 'hidden';
                         
                         const pdfObj = document.createElement('object');
                         pdfObj.data = event.target.result;
@@ -231,14 +232,13 @@
                         // Esperamos a que el PDF se cargue y se renderice
                         setTimeout(() => {
                             createGridOverlay();
-                        }, 800);
+                        }, 1000);
                     } else {
                         // Para imágenes
                         const img = document.createElement('img');
                         img.src = event.target.result;
                         img.id = 'uploadedContent';
                         img.style.width = '100%';
-                        img.style.maxHeight = '800px';
                         img.style.objectFit = 'contain';
                         
                         fileViewer.appendChild(img);
@@ -279,28 +279,52 @@
             // Determinamos si es un PDF por el tipo de elemento
             const isPDF = contentClone.tagName.toLowerCase() === 'object';
             
-            // Configuración de rejillas - ajustada para mejor visualización
-            // Si es un PDF, usamos un posicionamiento específico mejor adaptado
-            const startX = isPDF ? contentClone.offsetWidth * 0.06 : contentClone.offsetWidth * 0.1;
-            const startY = isPDF ? contentClone.offsetHeight * 0.06 : contentClone.offsetHeight * 0.15;
+            // Proporciones para rejillas en PDF - estas deben coincidir exactamente con las del archivo
+            // Valores específicos para el archivo de muestra proporcionado (13 filas x 9 columnas)
+            let startX, startY, gridWidth, gridHeight, xSpacing, ySpacing;
             
-            // Para PDFs, las rejillas ocupan un mayor espacio horizontal
-            const gridAreaWidth = isPDF ? contentClone.offsetWidth * 0.88 : contentClone.offsetWidth * 0.8;
-            const gridAreaHeight = isPDF ? contentClone.offsetHeight * 0.85 : contentClone.offsetHeight * 0.7;
+            if (isPDF) {
+                // Para PDF de ejemplo (ajustar según el documento específico)
+                const contentWidth = contentClone.offsetWidth;
+                const contentHeight = contentClone.offsetHeight;
+                
+                // Proporciones basadas en el archivo de muestra (observación del PDF)
+                startX = contentWidth * 0.07;       // 7% desde el margen izquierdo
+                startY = contentHeight * 0.05;      // 5% desde el margen superior
+                
+                // Tamaño total del área de rejillas (basado en observación del PDF)
+                const gridAreaWidth = contentWidth * 0.86;   // 86% del ancho total
+                const gridAreaHeight = contentHeight * 0.89; // 89% del alto total
+                
+                // Calcular tamaño de rejilla y espaciado
+                gridWidth = gridAreaWidth / columns * 0.45;  // Tamaño de cada rejilla (anchura)
+                gridHeight = gridWidth;                      // Mantener cuadrado
+                
+                // Espaciado horizontal y vertical entre rejillas
+                xSpacing = (gridAreaWidth - (gridWidth * columns)) / (columns - 1);
+                ySpacing = (gridAreaHeight - (gridHeight * rows)) / (rows - 1);
+            } else {
+                // Para imágenes (usando proporciones similares pero adaptadas)
+                const contentWidth = contentClone.offsetWidth;
+                const contentHeight = contentClone.offsetHeight;
+                
+                startX = contentWidth * 0.08;
+                startY = contentHeight * 0.06;
+                
+                const gridAreaWidth = contentWidth * 0.84;
+                const gridAreaHeight = contentHeight * 0.88;
+                
+                gridWidth = gridAreaWidth / columns * 0.45;
+                gridHeight = gridWidth;
+                
+                xSpacing = (gridAreaWidth - (gridWidth * columns)) / (columns - 1);
+                ySpacing = (gridAreaHeight - (gridHeight * rows)) / (rows - 1);
+            }
             
-            const gridWidth = gridAreaWidth / columns;
-            const gridHeight = gridAreaHeight / rows;
-            
-            // Calculamos el tamaño de cada rejilla individualmente
-            const actualGridWidth = gridWidth * 0.85;  // 85% del espacio disponible para cada rejilla
-            const actualGridHeight = actualGridWidth;  // Mantenemos las rejillas cuadradas
-            
-            console.log("Dimensiones de las rejillas:", {
-                containerWidth: contentClone.offsetWidth,
-                containerHeight: contentClone.offsetHeight,
+            console.log("Dimensiones calculadas:", {
                 startX, startY,
                 gridWidth, gridHeight,
-                actualGridWidth, actualGridHeight
+                xSpacing, ySpacing
             });
             
             // Creamos las rejillas
@@ -311,13 +335,15 @@
                     gridDiv.dataset.row = r;
                     gridDiv.dataset.col = c;
                     
-                    // Posicionamos la rejilla
+                    // Posicionamos la rejilla usando el espaciado calculado
+                    const posX = startX + c * (gridWidth + xSpacing);
+                    const posY = startY + r * (gridHeight + ySpacing);
+                    
                     gridDiv.style.position = 'absolute';
-                    gridDiv.style.left = (startX + c * gridWidth) + 'px';
-                    gridDiv.style.top = (startY + r * gridHeight) + 'px';
-                    gridDiv.style.width = actualGridWidth + 'px';
-                    gridDiv.style.height = actualGridHeight + 'px';
-                    gridDiv.style.border = '1px solid rgba(255, 100, 100, 0.8)';
+                    gridDiv.style.left = posX + 'px';
+                    gridDiv.style.top = posY + 'px';
+                    gridDiv.style.width = gridWidth + 'px';
+                    gridDiv.style.height = gridHeight + 'px';
                     
                     // Creamos las celdas 5x5 dentro de cada rejilla
                     for (let i = 0; i < gridSize; i++) {
@@ -326,7 +352,6 @@
                             cell.className = 'cell';
                             cell.dataset.row = i;
                             cell.dataset.col = j;
-                            cell.style.border = '1px solid rgba(255, 150, 150, 0.7)';
                             
                             // Solo la primera fila permite interacción completa
                             if (r === 0) {
