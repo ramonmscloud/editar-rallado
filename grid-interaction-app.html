@@ -152,6 +152,10 @@
             <span class="status" id="fileStatus">Ningún archivo cargado</span>
         </div>
         
+        <div id="uploadedImage" style="display: none; margin-bottom: 20px; text-align: center;">
+            <img id="gridImage" style="max-width: 100%; height: auto;" />
+        </div>
+        
         <div class="button-group" style="display: flex; gap: 10px; margin-bottom: 20px;">
             <button id="resetButton">Reiniciar Rejillas</button>
             <button id="savePdfButton">Guardar como PDF</button>
@@ -315,10 +319,103 @@
             if (file) {
                 document.getElementById('fileStatus').textContent = `Archivo cargado: ${file.name}`;
                 
-                // Aquí podrías procesar el archivo si es necesario
-                // Por simplicidad, simplemente mostramos el nombre
+                // Mostramos la imagen cargada
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const imageContainer = document.getElementById('uploadedImage');
+                    const gridImage = document.getElementById('gridImage');
+                    
+                    // Si es un PDF, convertimos la primera página a imagen
+                    if (file.type === 'application/pdf') {
+                        // Para PDF necesitaríamos pdf.js, pero por simplicidad
+                        // mostramos un mensaje al usuario
+                        alert("Los archivos PDF se mostrarán como fondo. Las rejillas interactivas estarán encima.");
+                        
+                        // Para PDFs podríamos usar un iframe o convertir a imagen
+                        // Por ahora, simplemente ocultamos las rejillas generadas
+                        document.getElementById('gridRows').style.display = 'none';
+                        
+                        // Usamos un objeto para mostrar el PDF
+                        const pdfObj = document.createElement('object');
+                        pdfObj.data = event.target.result;
+                        pdfObj.type = 'application/pdf';
+                        pdfObj.width = '100%';
+                        pdfObj.height = '800px';
+                        
+                        imageContainer.innerHTML = '';
+                        imageContainer.appendChild(pdfObj);
+                        imageContainer.style.display = 'block';
+                        
+                        // Creamos rejillas transparentes encima del PDF
+                        createOverlayGrids();
+                    } else {
+                        // Para imágenes, simplemente mostramos la imagen
+                        gridImage.src = event.target.result;
+                        imageContainer.style.display = 'block';
+                        
+                        // Creamos rejillas transparentes encima de la imagen
+                        gridImage.onload = function() {
+                            createOverlayGrids();
+                        };
+                    }
+                };
+                
+                if (file.type === 'application/pdf') {
+                    reader.readAsDataURL(file);
+                } else {
+                    reader.readAsDataURL(file);
+                }
             }
         });
+        
+        // Función para crear rejillas transparentes sobre la imagen/PDF cargados
+        function createOverlayGrids() {
+            const gridRowsContainer = document.getElementById('gridRows');
+            gridRowsContainer.innerHTML = '';
+            gridRowsContainer.style.display = 'block';
+            gridRowsContainer.style.position = 'relative';
+            
+            // Creamos las rejillas como antes, pero con fondo transparente
+            for (let r = 0; r < rows; r++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'grid-row';
+                
+                for (let c = 0; c < columns; c++) {
+                    const gridDiv = document.createElement('div');
+                    gridDiv.className = 'grid';
+                    gridDiv.dataset.row = r;
+                    gridDiv.dataset.col = c;
+                    gridDiv.style.backgroundColor = 'transparent';
+                    gridDiv.style.border = '1px solid rgba(255, 153, 153, 0.3)';
+                    
+                    for (let i = 0; i < gridSize; i++) {
+                        for (let j = 0; j < gridSize; j++) {
+                            const cell = document.createElement('div');
+                            cell.className = 'cell';
+                            cell.dataset.row = i;
+                            cell.dataset.col = j;
+                            cell.style.border = '1px solid rgba(255, 204, 204, 0.3)';
+                            
+                            // Solo la primera fila permite interacción completa
+                            if (r === 0) {
+                                cell.addEventListener('mousedown', startDrawing);
+                                cell.addEventListener('mousemove', draw);
+                                cell.addEventListener('mouseup', stopDrawing);
+                                cell.addEventListener('mouseleave', leaveCell);
+                            }
+                            
+                            gridDiv.appendChild(cell);
+                        }
+                    }
+                    
+                    rowDiv.appendChild(gridDiv);
+                }
+                
+                gridRowsContainer.appendChild(rowDiv);
+            }
+            
+            updateGrids();
+        }
         
         // Reiniciar rejillas
         document.getElementById('resetButton').addEventListener('click', function() {
@@ -333,12 +430,25 @@
             const titleDiv = document.createElement('div');
             titleDiv.innerHTML = '<h2 style="text-align: center; margin-bottom: 20px;">Hoja de Práctica - Cajas 5x5</h2>';
             
-            // Crear una copia del contenido de las rejillas para el PDF
-            const gridContent = document.createElement('div');
-            gridContent.appendChild(titleDiv);
+            // Crear una copia del contenido para el PDF
+            const contentDiv = document.createElement('div');
+            contentDiv.appendChild(titleDiv);
             
-            const gridRowsClone = document.getElementById('gridRows').cloneNode(true);
-            gridContent.appendChild(gridRowsClone);
+            // Verificar si hay una imagen cargada
+            const uploadedImage = document.getElementById('uploadedImage');
+            if (uploadedImage.style.display !== 'none') {
+                // Si hay una imagen cargada, la incluimos en el PDF
+                const imageClone = uploadedImage.cloneNode(true);
+                contentDiv.appendChild(imageClone);
+                
+                // Incluimos también las rejillas interactivas
+                const gridRowsClone = document.getElementById('gridRows').cloneNode(true);
+                contentDiv.appendChild(gridRowsClone);
+            } else {
+                // Si no hay imagen, solo incluimos las rejillas generadas
+                const gridRowsClone = document.getElementById('gridRows').cloneNode(true);
+                contentDiv.appendChild(gridRowsClone);
+            }
             
             // Ocultar temporalmente los controles para generar el PDF
             const controls = document.querySelector('.controls');
@@ -363,7 +473,7 @@
             };
             
             // Generar el PDF
-            html2pdf().from(gridContent).set(options).save().then(() => {
+            html2pdf().from(contentDiv).set(options).save().then(() => {
                 // Restaurar la visualización de los controles
                 controls.style.display = originalDisplayControls;
                 buttons.style.display = originalDisplayButtons;
