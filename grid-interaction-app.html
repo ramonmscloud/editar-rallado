@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aplicación de Rejillas 5x5</title>
+    <title>Edición de Muestras</title>
     <!-- Bibliotecas externas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -29,12 +29,6 @@
             align-items: center;
         }
         
-        .grid-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        
         .grid-row {
             display: flex;
             flex-wrap: wrap;
@@ -51,49 +45,22 @@
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             grid-template-rows: repeat(5, 1fr);
-            background-color: white;
+            background-color: transparent;
+            position: relative;
         }
         
         .cell {
             border: 1px solid #ffcccc;
             box-sizing: border-box;
             cursor: pointer;
-            /* Aseguramos que las celdas sean visibles */
-            min-width: 10px;
-            min-height: 10px;
         }
         
-        @media print {
-            body {
-                padding: 0;
-                margin: 0;
-            }
-            
-            .controls, .instructions, button {
-                display: none;
-            }
-            
-            .grid-row {
-                break-inside: avoid;
-            }
-        }
-        
-        /* Estilos para los marcadores */
         .start-point {
             background-color: #4CAF50 !important;
         }
         
         .path {
             background-color: #2196F3 !important;
-        }
-        
-        /* Aseguramos que los estilos sean visibles incluso cuando hay superposición */
-        .cell.start-point {
-            z-index: 10;
-        }
-        
-        .cell.path {
-            z-index: 5;
         }
         
         button {
@@ -145,20 +112,38 @@
             background-color: #E64A19;
         }
         
-        /* Nuevo botón para activar modo debug */
-        #debugButton {
-            background-color: #9C27B0;
-            margin-left: 10px;
+        .overlay-container {
+            position: relative;
+            width: 100%;
+            margin-bottom: 20px;
         }
         
-        #debugButton:hover {
-            background-color: #7B1FA2;
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: auto;
+            z-index: 100;
+        }
+        
+        #uploadedContent {
+            max-width: 100%;
+            display: block;
+            margin: 0 auto;
+        }
+        
+        .file-viewer {
+            max-width: 100%;
+            margin: 0 auto;
+            position: relative;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Aplicación de Rejillas 5x5</h1>
+        <h1>Edición de Muestras</h1>
         
         <div class="instructions">
             <h3>Instrucciones:</h3>
@@ -176,17 +161,17 @@
             <span class="status" id="fileStatus">Ningún archivo cargado</span>
         </div>
         
-        <div id="uploadedImage" style="display: none; margin-bottom: 20px; text-align: center;">
-            <img id="gridImage" style="max-width: 100%; height: auto;" />
-        </div>
-        
         <div class="button-group" style="display: flex; gap: 10px; margin-bottom: 20px;">
             <button id="resetButton">Reiniciar Marcadores</button>
             <button id="savePdfButton">Guardar como PDF</button>
-            <button id="debugButton" style="display: none;">Debug</button>
         </div>
         
-        <div id="gridRows" style="display: none;"></div>
+        <div id="appContent">
+            <!-- Aquí se mostrará el contenido cargado y las rejillas -->
+            <div id="messageDiv" style="text-align: center; padding: 20px; background-color: #f5f5f5; border-radius: 8px;">
+                Por favor, carga un archivo de rejillas para comenzar.
+            </div>
+        </div>
     </div>
 
     <script>
@@ -201,29 +186,108 @@
         let currentGrid = null;
         let isDrawing = false;
         
-        // Para depuración
-        window.debugApp = function() {
-            console.log('Estado actual:');
-            console.log('- Puntos de inicio:', firstRowStartPoints);
-            console.log('- Trazos:', paths);
-            console.log('- Grids disponibles:', document.querySelectorAll('.grid').length);
-        };
-        
-        // Crear rejillas
-        function createGrids() {
-            const gridRowsContainer = document.getElementById('gridRows');
-            gridRowsContainer.innerHTML = '';
-            
-            for (let r = 0; r < rows; r++) {
-                const rowDiv = document.createElement('div');
-                rowDiv.className = 'grid-row';
+        // Manejar carga de archivo
+        document.getElementById('gridFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Reiniciamos el estado de la aplicación al cargar un nuevo archivo
+                firstRowStartPoints = Array(columns).fill(null);
+                paths = Array(rows).fill().map(() => Array(columns).fill().map(() => []));
+                currentGrid = null;
+                isDrawing = false;
                 
+                document.getElementById('fileStatus').textContent = `Archivo cargado: ${file.name}`;
+                
+                // Mostramos la imagen cargada
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const appContent = document.getElementById('appContent');
+                    appContent.innerHTML = ''; // Limpiamos el contenido anterior
+                    
+                    // Creamos el contenedor para visualizar el archivo
+                    const fileViewer = document.createElement('div');
+                    fileViewer.className = 'file-viewer';
+                    
+                    // Si es un PDF, usamos un objeto para mostrarlo
+                    if (file.type === 'application/pdf') {
+                        const pdfObj = document.createElement('object');
+                        pdfObj.data = event.target.result;
+                        pdfObj.type = 'application/pdf';
+                        pdfObj.width = '100%';
+                        pdfObj.height = '800px';
+                        pdfObj.id = 'uploadedContent';
+                        
+                        fileViewer.appendChild(pdfObj);
+                        appContent.appendChild(fileViewer);
+                        
+                        // Esperamos a que el PDF se cargue
+                        setTimeout(() => {
+                            createGridOverlay();
+                        }, 500);
+                    } else {
+                        // Para imágenes
+                        const img = document.createElement('img');
+                        img.src = event.target.result;
+                        img.id = 'uploadedContent';
+                        img.style.width = '100%';
+                        
+                        fileViewer.appendChild(img);
+                        appContent.appendChild(fileViewer);
+                        
+                        img.onload = function() {
+                            createGridOverlay();
+                        };
+                    }
+                };
+                
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Crear rejillas sobre el archivo visualizado
+        function createGridOverlay() {
+            // Obtenemos el contenedor y el elemento visualizado
+            const fileViewer = document.querySelector('.file-viewer');
+            const uploadedContent = document.getElementById('uploadedContent');
+            
+            // Creamos un contenedor para el overlay
+            const overlayContainer = document.createElement('div');
+            overlayContainer.className = 'overlay-container';
+            overlayContainer.style.width = fileViewer.offsetWidth + 'px';
+            overlayContainer.style.height = fileViewer.offsetHeight + 'px';
+            
+            // Copiamos la imagen o PDF para que esté debajo del overlay
+            const contentClone = uploadedContent.cloneNode(true);
+            overlayContainer.appendChild(contentClone);
+            
+            // Creamos el overlay de rejillas
+            const gridOverlay = document.createElement('div');
+            gridOverlay.className = 'grid-overlay';
+            gridOverlay.style.width = contentClone.offsetWidth + 'px';
+            gridOverlay.style.height = contentClone.offsetHeight + 'px';
+            
+            // Configuración de rejillas
+            const startX = contentClone.offsetWidth * 0.1; // 10% desde el borde izquierdo
+            const startY = contentClone.offsetHeight * 0.1; // 10% desde el borde superior
+            const gridWidth = (contentClone.offsetWidth * 0.8) / columns; // 80% del ancho / número de columnas
+            const gridHeight = (contentClone.offsetHeight * 0.8) / rows; // 80% del alto / número de filas
+            
+            // Creamos las rejillas
+            for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < columns; c++) {
                     const gridDiv = document.createElement('div');
                     gridDiv.className = 'grid';
                     gridDiv.dataset.row = r;
                     gridDiv.dataset.col = c;
                     
+                    // Posicionamos la rejilla
+                    gridDiv.style.position = 'absolute';
+                    gridDiv.style.left = (startX + c * gridWidth) + 'px';
+                    gridDiv.style.top = (startY + r * gridHeight) + 'px';
+                    gridDiv.style.width = (gridWidth * 0.8) + 'px'; // 80% del ancho de la celda
+                    gridDiv.style.height = (gridHeight * 0.8) + 'px'; // 80% del alto de la celda
+                    
+                    // Creamos las celdas 5x5 dentro de cada rejilla
                     for (let i = 0; i < gridSize; i++) {
                         for (let j = 0; j < gridSize; j++) {
                             const cell = document.createElement('div');
@@ -232,33 +296,7 @@
                             cell.dataset.col = j;
                             
                             // Solo la primera fila permite interacción completa
-                            if (gridRow === currentGrid.row && gridCol === currentGrid.col) {
-                    // Añadir al trazo actual
-                    const lastPoint = paths[gridRow][gridCol][paths[gridRow][gridCol].length - 1];
-                    
-                    // Evitar duplicados consecutivos
-                    if (lastPoint.row !== cellRow || lastPoint.col !== cellCol) {
-                        console.log('Dibujando en:', gridRow, gridCol, 'celda:', cellRow, cellCol);
-                        paths[gridRow][gridCol].push({ row: cellRow, col: cellCol });
-                        updateGrids();
-                    }
-                }
-            }
-        }
-        
-        // Detener dibujo
-        function stopDrawing() {
-            console.log('Dibujo detenido');
-            isDrawing = false;
-            currentGrid = null;
-        }
-        
-        // Salir de una celda
-        function leaveCell(e) {
-            if (isDrawing) {
-                // Simplemente registramos que salimos de la celda
-                console.log('Salida de celda mientras dibujamos');
-            }r === 0) {
+                            if (r === 0) {
                                 cell.addEventListener('mousedown', startDrawing);
                                 cell.addEventListener('mousemove', draw);
                                 cell.addEventListener('mouseup', stopDrawing);
@@ -269,27 +307,28 @@
                         }
                     }
                     
-                    rowDiv.appendChild(gridDiv);
+                    gridOverlay.appendChild(gridDiv);
                 }
-                
-                gridRowsContainer.appendChild(rowDiv);
             }
             
+            overlayContainer.appendChild(gridOverlay);
+            
+            // Reemplazamos el contenido del visor con el overlay
+            fileViewer.innerHTML = '';
+            fileViewer.appendChild(overlayContainer);
+            
+            // Actualizamos los marcadores
             updateGrids();
         }
         
         // Iniciar dibujo
         function startDrawing(e) {
-            console.log('startDrawing llamado:', e.target);
-            
             if (e.target.classList.contains('cell')) {
-                const parentGrid = e.target.parentNode;
-                const gridRow = parseInt(parentGrid.dataset.row);
-                const gridCol = parseInt(parentGrid.dataset.col);
+                const gridDiv = e.target.closest('.grid');
+                const gridRow = parseInt(gridDiv.dataset.row);
+                const gridCol = parseInt(gridDiv.dataset.col);
                 const cellRow = parseInt(e.target.dataset.row);
                 const cellCol = parseInt(e.target.dataset.col);
-                
-                console.log('Inicio en grid:', gridRow, gridCol, 'celda:', cellRow, cellCol);
                 
                 if (gridRow === 0) {
                     isDrawing = true;
@@ -309,9 +348,9 @@
         // Dibujar al mover el ratón
         function draw(e) {
             if (isDrawing && e.target.classList.contains('cell')) {
-                const parentGrid = e.target.parentNode;
-                const gridRow = parseInt(parentGrid.dataset.row);
-                const gridCol = parseInt(parentGrid.dataset.col);
+                const gridDiv = e.target.closest('.grid');
+                const gridRow = parseInt(gridDiv.dataset.row);
+                const gridCol = parseInt(gridDiv.dataset.col);
                 const cellRow = parseInt(e.target.dataset.row);
                 const cellCol = parseInt(e.target.dataset.col);
                 
@@ -321,33 +360,6 @@
                     
                     // Evitar duplicados consecutivos
                     if (lastPoint.row !== cellRow || lastPoint.col !== cellCol) {
-                        console.log('Dibujando en:', gridRow, gridCol, 'celda:', cellRow, cellCol);
-                        paths[gridRow][gridCol].push({ row: cellRow, col: cellCol });
-                        updateGrids();
-                    }
-                }
-            }
-        }
-        
-        // Detener dibujo
-        function stopDrawing() {
-            console.log('Dibujo detenido');
-            isDrawing = false;
-            currentGrid = null;
-        }
-        
-        // Salir de una celda
-        function leaveCell(e) {
-            if (isDrawing) {
-                // Simplemente registramos que salimos de la celda
-                console.log('Salida de celda mientras dibujamos');
-            }
-        }gridRow === currentGrid.row && gridCol === currentGrid.col) {
-                    // Añadir al trazo actual
-                    const lastPoint = paths[gridRow][gridCol][paths[gridRow][gridCol].length - 1];
-                    
-                    // Evitar duplicados consecutivos
-                    if (lastPoint.row !== cellRow || lastPoint.col !== cellCol) {
                         paths[gridRow][gridCol].push({ row: cellRow, col: cellCol });
                         updateGrids();
                     }
@@ -363,18 +375,12 @@
         
         // Salir de una celda
         function leaveCell(e) {
-            if (isDrawing) {
-                const gridDiv = e.target.parentNode;
-                if (parseInt(gridDiv.dataset.row) === 0) {
-                    // Continuamos dibujando dentro de la misma rejilla
-                }
-            }
+            // No hacemos nada especial aquí, solo controlamos el evento
         }
         
         // Actualizar la visualización de las rejillas
         function updateGrids() {
             const allGrids = document.querySelectorAll('.grid');
-            console.log('Actualizando', allGrids.length, 'rejillas');
             
             allGrids.forEach(grid => {
                 const gridRow = parseInt(grid.dataset.row);
@@ -383,8 +389,6 @@
                 // Limpiar todas las celdas
                 grid.querySelectorAll('.cell').forEach(cell => {
                     cell.classList.remove('start-point', 'path');
-                    // También eliminamos estilos inline que pudieran haberse aplicado
-                    cell.style.backgroundColor = '';
                 });
                 
                 // Aplicar punto de inicio si existe
@@ -393,212 +397,29 @@
                     const startCell = grid.querySelector(`.cell[data-row="${startPoint.row}"][data-col="${startPoint.col}"]`);
                     if (startCell) {
                         startCell.classList.add('start-point');
-                        startCell.style.backgroundColor = 'rgba(76, 175, 80, 0.8)'; // Verde semitransparente
                     }
                 }
                 
                 // Aplicar trazos solo a la primera fila
-                if (gridRow === 0 && paths[gridRow][gridCol]) {
+                if (gridRow === 0 && paths[gridRow][gridCol] && paths[gridRow][gridCol].length > 0) {
                     paths[gridRow][gridCol].forEach(point => {
                         const pathCell = grid.querySelector(`.cell[data-row="${point.row}"][data-col="${point.col}"]`);
                         if (pathCell && !pathCell.classList.contains('start-point')) {
                             pathCell.classList.add('path');
-                            pathCell.style.backgroundColor = 'rgba(33, 150, 243, 0.7)'; // Azul semitransparente
                         }
                     });
                 }
             });
         }
         
-        // Manejar carga de archivo
-        document.getElementById('gridFile').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                // Reiniciamos el estado de la aplicación al cargar un nuevo archivo
-                firstRowStartPoints = Array(columns).fill(null);
-                paths = Array(rows).fill().map(() => Array(columns).fill().map(() => []));
-                currentGrid = null;
-                isDrawing = false;
-                
-                document.getElementById('fileStatus').textContent = `Archivo cargado: ${file.name}`;
-                
-                // Mostramos la imagen cargada
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    const imageContainer = document.getElementById('uploadedImage');
-                    const gridImage = document.getElementById('gridImage');
-                    
-                    // Limpiamos el contenedor de rejillas
-                    document.getElementById('gridRows').innerHTML = '';
-                    
-                    // Si es un PDF, usamos un objeto para mostrarlo
-                    if (file.type === 'application/pdf') {
-                        // Creamos un contenedor para el PDF que mantenga proporciones
-                        const pdfContainer = document.createElement('div');
-                        pdfContainer.style.width = '100%';
-                        pdfContainer.style.position = 'relative';
-                        pdfContainer.style.paddingBottom = '140%'; // Aproximadamente A4
-                        
-                        // Usamos un objeto para mostrar el PDF
-                        const pdfObj = document.createElement('object');
-                        pdfObj.data = event.target.result;
-                        pdfObj.type = 'application/pdf';
-                        pdfObj.style.position = 'absolute';
-                        pdfObj.style.width = '100%';
-                        pdfObj.style.height = '100%';
-                        pdfObj.style.top = '0';
-                        pdfObj.style.left = '0';
-                        
-                        pdfContainer.appendChild(pdfObj);
-                        
-                        imageContainer.innerHTML = '';
-                        imageContainer.appendChild(pdfContainer);
-                        imageContainer.style.display = 'block';
-                        
-                        // Añadimos un retraso para permitir que el PDF se cargue
-                        setTimeout(() => {
-                            createInteractiveOverlay();
-                        }, 1000);
-                    } else {
-                        // Para imágenes, simplemente mostramos la imagen
-                        gridImage.src = event.target.result;
-                        imageContainer.innerHTML = '';
-                        imageContainer.appendChild(gridImage);
-                        imageContainer.style.display = 'block';
-                        
-                        // Creamos el overlay interactivo una vez cargada la imagen
-                        gridImage.onload = function() {
-                            createInteractiveOverlay();
-                        };
-                    }
-                };
-                
-                reader.readAsDataURL(file);
-            }
-        });
-        
-        // Función para crear una capa interactiva sobre la imagen
-        function createInteractiveOverlay() {
-            const imageContainer = document.getElementById('uploadedImage');
-            const gridRowsContainer = document.getElementById('gridRows');
-            
-            // Dimensiones de la imagen/pdf cargada
-            const containerRect = imageContainer.getBoundingClientRect();
-            
-            // Limpiamos el contenedor anterior
-            gridRowsContainer.innerHTML = '';
-            
-            // Creamos un overlay para interactuar
-            const overlay = document.createElement('div');
-            overlay.style.position = 'absolute';
-            overlay.style.top = containerRect.top + 'px';
-            overlay.style.left = containerRect.left + 'px';
-            overlay.style.width = containerRect.width + 'px';
-            overlay.style.height = containerRect.height + 'px';
-            overlay.style.zIndex = '100';
-            overlay.style.pointerEvents = 'none'; // Inicialmente no captura eventos
-            
-            document.body.appendChild(overlay);
-            
-            // Creamos las rejillas con posiciones exactas basadas en la imagen
-            createOverlayGrids(overlay, containerRect);
-            
-            // Para debugging
-            console.log('Overlay creado con dimensiones:', 
-                        {width: containerRect.width, height: containerRect.height});
-        }
-        
-        // Función para crear rejillas transparentes sobre la imagen/PDF cargados
-        function createOverlayGrids(overlay, containerRect) {
-            const gridRowsContainer = document.getElementById('gridRows');
-            gridRowsContainer.innerHTML = '';
-            gridRowsContainer.style.display = 'block';
-            
-            // Aplicamos estilos para posicionar como un canvas sobre la imagen
-            const canvasDiv = document.createElement('div');
-            canvasDiv.style.position = 'absolute';
-            canvasDiv.style.top = '0';
-            canvasDiv.style.left = '0';
-            canvasDiv.style.width = containerRect.width + 'px';
-            canvasDiv.style.height = containerRect.height + 'px';
-            canvasDiv.style.pointerEvents = 'auto';
-            
-            // Calculamos tamaños y espaciados basados en la imagen
-            // Para un PDF con rejillas 5x5, asumimos layout similar al archivo original
-            const gridWidth = containerRect.width / 11;  // 9 columnas + espacios
-            const gridHeight = gridWidth;  // Rejillas cuadradas
-            const horizontalGap = gridWidth * 0.4;  // Espacio horizontal entre rejillas
-            const verticalGap = gridWidth * 0.4;  // Espacio vertical entre filas
-            
-            // Creamos un grid de áreas sensibles
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < columns; c++) {
-                    // Calculamos posición de cada rejilla
-                    const gridLeft = c * (gridWidth + horizontalGap) + horizontalGap;
-                    const gridTop = r * (gridHeight + verticalGap) + verticalGap;
-                    
-                    // Creamos el div de la rejilla
-                    const gridDiv = document.createElement('div');
-                    gridDiv.className = 'grid';
-                    gridDiv.dataset.row = r;
-                    gridDiv.dataset.col = c;
-                    gridDiv.style.position = 'absolute';
-                    gridDiv.style.left = gridLeft + 'px';
-                    gridDiv.style.top = gridTop + 'px';
-                    gridDiv.style.width = gridWidth + 'px';
-                    gridDiv.style.height = gridHeight + 'px';
-                    gridDiv.style.backgroundColor = 'transparent';
-                    gridDiv.style.border = '1px solid rgba(255, 100, 100, 0.7)';
-                    gridDiv.style.display = 'grid';
-                    gridDiv.style.gridTemplateColumns = 'repeat(5, 1fr)';
-                    gridDiv.style.gridTemplateRows = 'repeat(5, 1fr)';
-                    
-                    // Creamos celdas dentro de cada rejilla
-                    for (let i = 0; i < gridSize; i++) {
-                        for (let j = 0; j < gridSize; j++) {
-                            const cell = document.createElement('div');
-                            cell.className = 'cell';
-                            cell.dataset.row = i;
-                            cell.dataset.col = j;
-                            cell.style.border = '1px solid rgba(255, 150, 150, 0.7)';
-                            cell.style.boxSizing = 'border-box';
-                            
-                            // Solo la primera fila permite interacción completa
-                            if (r === 0) {
-                                cell.style.cursor = 'pointer';
-                                cell.addEventListener('mousedown', startDrawing);
-                                cell.addEventListener('mousemove', draw);
-                                cell.addEventListener('mouseup', stopDrawing);
-                                cell.addEventListener('mouseleave', leaveCell);
-                            }
-                            
-                            gridDiv.appendChild(cell);
-                        }
-                    }
-                    
-                    canvasDiv.appendChild(gridDiv);
-                }
-            }
-            
-            overlay.appendChild(canvasDiv);
-            gridRowsContainer.appendChild(overlay);
-            
-            updateGrids();
-            
-            // Log para debugging
-            console.log('Rejillas creadas con dimensiones:', 
-                       {gridWidth, gridHeight, horizontalGap, verticalGap});
-        }
-        
-        // Reiniciar rejillas
-        document.getElementById('resetButton').addEventListener('click', function() {
-            firstRowStartPoints = Array(columns).fill(null);
-            paths = Array(rows).fill().map(() => Array(columns).fill().map(() => []));
-            updateGrids();
-        });
-        
         // Función para guardar como PDF
         document.getElementById('savePdfButton').addEventListener('click', function() {
+            const appContent = document.getElementById('appContent');
+            if (!appContent.querySelector('.file-viewer')) {
+                alert('Por favor, carga un archivo primero.');
+                return;
+            }
+            
             // Crear un título para el PDF
             const titleDiv = document.createElement('div');
             titleDiv.innerHTML = '<h2 style="text-align: center; margin-bottom: 20px;">Hoja de Práctica - Cajas 5x5</h2>';
@@ -607,86 +428,27 @@
             const contentDiv = document.createElement('div');
             contentDiv.appendChild(titleDiv);
             
-            // Incluimos la imagen original
-            const uploadedImage = document.getElementById('uploadedImage').cloneNode(true);
-            
-            // Si es un PDF, creamos una captura del estado actual
-            if (uploadedImage.querySelector('object')) {
-                html2canvas(document.getElementById('uploadedImage')).then(canvas => {
-                    const imgData = canvas.toDataURL('image/png');
-                    const img = document.createElement('img');
-                    img.src = imgData;
-                    img.style.width = '100%';
-                    
-                    contentDiv.appendChild(img);
-                    
-                    // Marcamos los puntos y trazos directamente en la imagen
-                    const gridRowsContainer = document.getElementById('gridRows');
-                    const marksCanvas = document.createElement('div');
-                    marksCanvas.style.position = 'relative';
-                    marksCanvas.style.marginTop = '20px';
-                    
-                    // Copiamos solo los puntos verdes y trazos azules
-                    const grids = document.querySelectorAll('.grid');
-                    grids.forEach(grid => {
-                        const startPoints = grid.querySelectorAll('.start-point');
-                        const paths = grid.querySelectorAll('.path');
-                        
-                        if (startPoints.length > 0 || paths.length > 0) {
-                            // Añadimos una nota sobre los marcadores
-                            const locationInfo = document.createElement('p');
-                            locationInfo.textContent = `Rejilla en fila ${grid.dataset.row}, columna ${grid.dataset.col} tiene marcadores.`;
-                            marksCanvas.appendChild(locationInfo);
-                        }
-                    });
-                    
-                    contentDiv.appendChild(marksCanvas);
-                    
-                    generatePDF(contentDiv);
-                });
-            } else {
-                // Para imágenes normales
-                contentDiv.appendChild(uploadedImage);
-                generatePDF(contentDiv);
-            }
-        });
-        
-        function generatePDF(contentDiv) {
-            // Ocultar temporalmente los controles para generar el PDF
-            const controls = document.querySelector('.controls');
-            const buttons = document.querySelector('.button-group');
-            const instructions = document.querySelector('.instructions');
-            
-            const originalDisplayControls = controls.style.display;
-            const originalDisplayButtons = buttons.style.display;
-            const originalDisplayInstructions = instructions.style.display;
-            
-            controls.style.display = 'none';
-            buttons.style.display = 'none';
-            instructions.style.display = 'none';
-            
-            // Opciones para el PDF
-            const options = {
-                margin: [10, 10],
-                filename: 'rejillas_5x5.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, logging: false },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-            
-            // Generar el PDF
-            html2pdf().from(contentDiv).set(options).save().then(() => {
-                // Restaurar la visualización de los controles
-                controls.style.display = originalDisplayControls;
-                buttons.style.display = originalDisplayButtons;
-                instructions.style.display = originalDisplayInstructions;
+            // Hacer una captura de la página actual con html2canvas
+            html2canvas(document.querySelector('.overlay-container')).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const img = document.createElement('img');
+                img.src = imgData;
+                img.style.width = '100%';
+                
+                contentDiv.appendChild(img);
+                
+                // Opciones para el PDF
+                const options = {
+                    margin: [10, 10],
+                    filename: 'rejillas_5x5.pdf',
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, logging: false },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                
+                // Generar el PDF
+                html2pdf().from(contentDiv).set(options).save();
             });
-        }
-        
-        // Botón de debug (oculto por defecto)
-        document.getElementById('debugButton').addEventListener('click', function() {
-            console.log('Modo debug activado');
-            window.debugApp();
         });
         
         // Reiniciar marcadores
@@ -695,19 +457,6 @@
             paths = Array(rows).fill().map(() => Array(columns).fill().map(() => []));
             updateGrids();
         });
-        
-        // Inicializar la aplicación
-        window.onload = function() {
-            // No generamos rejillas por defecto
-            // Solo esperamos a que el usuario cargue un archivo
-            
-            // Activar el modo debug con la tecla "d"
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'd' && e.ctrlKey) {
-                    document.getElementById('debugButton').style.display = 'block';
-                }
-            });
-        };
     </script>
 </body>
 </html>
