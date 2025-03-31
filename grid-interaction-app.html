@@ -414,6 +414,12 @@
         document.getElementById('gridFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
+                // Reiniciamos el estado de la aplicación al cargar un nuevo archivo
+                firstRowStartPoints = Array(columns).fill(null);
+                paths = Array(rows).fill().map(() => Array(columns).fill().map(() => []));
+                currentGrid = null;
+                isDrawing = false;
+                
                 document.getElementById('fileStatus').textContent = `Archivo cargado: ${file.name}`;
                 
                 // Mostramos la imagen cargada
@@ -421,6 +427,9 @@
                 reader.onload = function(event) {
                     const imageContainer = document.getElementById('uploadedImage');
                     const gridImage = document.getElementById('gridImage');
+                    
+                    // Limpiamos el contenedor de rejillas
+                    document.getElementById('gridRows').innerHTML = '';
                     
                     // Si es un PDF, usamos un objeto para mostrarlo
                     if (file.type === 'application/pdf') {
@@ -453,6 +462,8 @@
                     } else {
                         // Para imágenes, simplemente mostramos la imagen
                         gridImage.src = event.target.result;
+                        imageContainer.innerHTML = '';
+                        imageContainer.appendChild(gridImage);
                         imageContainer.style.display = 'block';
                         
                         // Creamos el overlay interactivo una vez cargada la imagen
