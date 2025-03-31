@@ -4,12 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aplicación de Rejillas 5x5</title>
+    <!-- Biblioteca html2pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 1200px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #ffffff;
         }
         
         .container {
@@ -28,20 +31,21 @@
         .grid-container {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 15px;
         }
         
         .grid-row {
             display: flex;
             flex-wrap: wrap;
             width: 100%;
-            gap: 10px;
-            margin-bottom: 10px;
+            gap: 35px;
+            margin-bottom: 25px;
+            justify-content: center;
         }
         
         .grid {
-            width: 100px;
-            height: 100px;
+            width: 60px;
+            height: 60px;
             border: 1px solid #ff9999;
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -53,6 +57,21 @@
             border: 1px solid #ffcccc;
             box-sizing: border-box;
             cursor: pointer;
+        }
+        
+        @media print {
+            body {
+                padding: 0;
+                margin: 0;
+            }
+            
+            .controls, .instructions, button {
+                display: none;
+            }
+            
+            .grid-row {
+                break-inside: avoid;
+            }
         }
         
         .start-point {
@@ -103,6 +122,14 @@
             border-radius: 4px;
             margin-bottom: 20px;
         }
+        
+        #savePdfButton {
+            background-color: #FF5722;
+        }
+        
+        #savePdfButton:hover {
+            background-color: #E64A19;
+        }
     </style>
 </head>
 <body>
@@ -125,7 +152,10 @@
             <span class="status" id="fileStatus">Ningún archivo cargado</span>
         </div>
         
-        <button id="resetButton">Reiniciar Rejillas</button>
+        <div class="button-group" style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button id="resetButton">Reiniciar Rejillas</button>
+            <button id="savePdfButton">Guardar como PDF</button>
+        </div>
         
         <div id="gridRows"></div>
     </div>
@@ -295,6 +325,50 @@
             firstRowStartPoints = Array(columns).fill(null);
             paths = Array(rows).fill().map(() => Array(columns).fill().map(() => []));
             updateGrids();
+        });
+        
+        // Función para guardar como PDF
+        document.getElementById('savePdfButton').addEventListener('click', function() {
+            // Crear un título para el PDF
+            const titleDiv = document.createElement('div');
+            titleDiv.innerHTML = '<h2 style="text-align: center; margin-bottom: 20px;">Hoja de Práctica - Cajas 5x5</h2>';
+            
+            // Crear una copia del contenido de las rejillas para el PDF
+            const gridContent = document.createElement('div');
+            gridContent.appendChild(titleDiv);
+            
+            const gridRowsClone = document.getElementById('gridRows').cloneNode(true);
+            gridContent.appendChild(gridRowsClone);
+            
+            // Ocultar temporalmente los controles para generar el PDF
+            const controls = document.querySelector('.controls');
+            const buttons = document.querySelector('.button-group');
+            const instructions = document.querySelector('.instructions');
+            
+            const originalDisplayControls = controls.style.display;
+            const originalDisplayButtons = buttons.style.display;
+            const originalDisplayInstructions = instructions.style.display;
+            
+            controls.style.display = 'none';
+            buttons.style.display = 'none';
+            instructions.style.display = 'none';
+            
+            // Opciones para el PDF
+            const options = {
+                margin: [10, 10],
+                filename: 'rejillas_5x5.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, logging: false },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            
+            // Generar el PDF
+            html2pdf().from(gridContent).set(options).save().then(() => {
+                // Restaurar la visualización de los controles
+                controls.style.display = originalDisplayControls;
+                buttons.style.display = originalDisplayButtons;
+                instructions.style.display = originalDisplayInstructions;
+            });
         });
         
         // Inicializar la aplicación
