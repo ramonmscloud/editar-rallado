@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicación de Rejillas 5x5</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        
+        .grid-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .grid-row {
+            display: flex;
+            flex-wrap: wrap;
+            width: 100%;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .grid {
+            width: 100px;
+            height: 100px;
+            border: 1px solid #ff9999;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            background-color: white;
+        }
+        
+        .cell {
+            border: 1px solid #ffcccc;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+        
+        .start-point {
+            background-color: #4CAF50;
+        }
+        
+        .path {
+            background-color: #2196F3;
+        }
+        
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .file-label {
+            padding: 10px 15px;
+            background-color: #2196F3;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .file-label:hover {
+            background-color: #0b7dda;
+        }
+        
+        .status {
+            margin-left: 20px;
+            color: #666;
+        }
+        
+        .instructions {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Aplicación de Rejillas 5x5</h1>
+        
+        <div class="instructions">
+            <h3>Instrucciones:</h3>
+            <ol>
+                <li>Carga tu archivo de rejillas (opcional).</li>
+                <li>Marca un punto de inicio (verde) en cada rejilla de la primera fila.</li>
+                <li>Dibuja un trazo (azul) en cada rejilla de la primera fila.</li>
+                <li>El sistema marcará automáticamente el mismo punto verde en las rejillas correspondientes de las filas inferiores.</li>
+            </ol>
+        </div>
+        
+        <div class="controls">
+            <label class="file-label" for="gridFile">Cargar archivo de rejillas</label>
+            <input type="file" id="gridFile" accept=".pdf,.jpg,.jpeg,.png">
+            <span class="status" id="fileStatus">Ningún archivo cargado</span>
+        </div>
+        
+        <button id="resetButton">Reiniciar Rejillas</button>
+        
+        <div id="gridRows"></div>
+    </div>
+
+    <script>
+        // Configuración inicial
+        const rows = 13;
+        const columns = 9;
+        const gridSize = 5;
+        
+        // Estado de la aplicación
+        let firstRowStartPoints = Array(columns).fill(null);
+        let paths = Array(rows).fill().map(() => Array(columns).fill().map(() => []));
+        let currentGrid = null;
+        let isDrawing = false;
+        
+        // Crear rejillas
+        function createGrids() {
+            const gridRowsContainer = document.getElementById('gridRows');
+            gridRowsContainer.innerHTML = '';
+            
+            for (let r = 0; r < rows; r++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'grid-row';
+                
+                for (let c = 0; c < columns; c++) {
+                    const gridDiv = document.createElement('div');
+                    gridDiv.className = 'grid';
+                    gridDiv.dataset.row = r;
+                    gridDiv.dataset.col = c;
+                    
+                    for (let i = 0; i < gridSize; i++) {
+                        for (let j = 0; j < gridSize; j++) {
+                            const cell = document.createElement('div');
+                            cell.className = 'cell';
+                            cell.dataset.row = i;
+                            cell.dataset.col = j;
+                            
+                            // Solo la primera fila permite interacción completa
+                            if (r === 0) {
+                                cell.addEventListener('mousedown', startDrawing);
+                                cell.addEventListener('mousemove', draw);
+                                cell.addEventListener('mouseup', stopDrawing);
+                                cell.addEventListener('mouseleave', leaveCell);
+                            }
+                            
+                            gridDiv.appendChild(cell);
+                        }
+                    }
+                    
+                    rowDiv.appendChild(gridDiv);
+                }
+                
+                gridRowsContainer.appendChild(rowDiv);
+            }
+            
+            updateGrids();
+        }
+        
+        // Iniciar dibujo
+        function startDrawing(e) {
+            if (e.target.classList.contains('cell')) {
+                const gridRow = parseInt(e.target.parentNode.dataset.row);
+                const gridCol = parseInt(e.target.parentNode.dataset.col);
+                const cellRow = parseInt(e.target.dataset.row);
+                const cellCol = parseInt(e.target.dataset.col);
+                
+                if (gridRow === 0) {
+                    isDrawing = true;
+                    currentGrid = { row: gridRow, col: gridCol };
+                    
+                    // Establecer punto de inicio (verde)
+                    firstRowStartPoints[gridCol] = { row: cellRow, col: cellCol };
+                    
+                    // Iniciar nuevo trazo
+                    paths[gridRow][gridCol] = [{ row: cellRow, col: cellCol }];
+                    
+                    updateGrids();
+                }
+            }
+        }
+        
+        // Dibujar al mover el ratón
+        function draw(e) {
+            if (isDrawing && e.target.classList.contains('cell')) {
+                const gridRow = parseInt(e.target.parentNode.dataset.row);
+                const gridCol = parseInt(e.target.parentNode.dataset.col);
+                const cellRow = parseInt(e.target.dataset.row);
+                const cellCol = parseInt(e.target.dataset.col);
+                
+                if (gridRow === currentGrid.row && gridCol === currentGrid.col) {
+                    // Añadir al trazo actual
+                    const lastPoint = paths[gridRow][gridCol][paths[gridRow][gridCol].length - 1];
+                    
+                    // Evitar duplicados consecutivos
+                    if (lastPoint.row !== cellRow || lastPoint.col !== cellCol) {
+                        paths[gridRow][gridCol].push({ row: cellRow, col: cellCol });
+                        updateGrids();
+                    }
+                }
+            }
+        }
+        
+        // Detener dibujo
+        function stopDrawing() {
+            isDrawing = false;
+            currentGrid = null;
+        }
+        
+        // Salir de una celda
+        function leaveCell(e) {
+            if (isDrawing) {
+                const gridDiv = e.target.parentNode;
+                if (parseInt(gridDiv.dataset.row) === 0) {
+                    // Continuamos dibujando dentro de la misma rejilla
+                }
+            }
+        }
+        
+        // Actualizar la visualización de las rejillas
+        function updateGrids() {
+            const allGrids = document.querySelectorAll('.grid');
+            
+            allGrids.forEach(grid => {
+                const gridRow = parseInt(grid.dataset.row);
+                const gridCol = parseInt(grid.dataset.col);
+                
+                // Limpiar todas las celdas
+                grid.querySelectorAll('.cell').forEach(cell => {
+                    cell.classList.remove('start-point', 'path');
+                });
+                
+                // Aplicar punto de inicio si existe
+                if (firstRowStartPoints[gridCol] !== null) {
+                    const startPoint = firstRowStartPoints[gridCol];
+                    const startCell = grid.querySelector(`.cell[data-row="${startPoint.row}"][data-col="${startPoint.col}"]`);
+                    if (startCell) {
+                        startCell.classList.add('start-point');
+                    }
+                }
+                
+                // Aplicar trazos solo a la primera fila
+                if (gridRow === 0 && paths[gridRow][gridCol]) {
+                    paths[gridRow][gridCol].forEach(point => {
+                        const pathCell = grid.querySelector(`.cell[data-row="${point.row}"][data-col="${point.col}"]`);
+                        if (pathCell && !pathCell.classList.contains('start-point')) {
+                            pathCell.classList.add('path');
+                        }
+                    });
+                }
+            });
+        }
+        
+        // Manejar carga de archivo
+        document.getElementById('gridFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('fileStatus').textContent = `Archivo cargado: ${file.name}`;
+                
+                // Aquí podrías procesar el archivo si es necesario
+                // Por simplicidad, simplemente mostramos el nombre
+            }
+        });
+        
+        // Reiniciar rejillas
+        document.getElementById('resetButton').addEventListener('click', function() {
+            firstRowStartPoints = Array(columns).fill(null);
+            paths = Array(rows).fill().map(() => Array(columns).fill().map(() => []));
+            updateGrids();
+        });
+        
+        // Inicializar la aplicación
+        window.onload = createGrids;
+    </script>
+</body>
+</html>
