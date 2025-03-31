@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Grid Marking Practice</title>
+    <title>PDF Grid Marking Practice (Revisado)</title>
     <!-- PDF.js Library (using CDN) -->
     <script src="//mozilla.github.io/pdf.js/build/pdf.mjs" type="module"></script>
 
@@ -14,6 +14,7 @@
             flex-direction: column;
             align-items: center;
             padding: 20px;
+            background-color: #f0f0f0; /* Fondo ligero para contraste */
         }
 
         #controls {
@@ -21,83 +22,90 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         #pdf-container {
             position: relative;
-            /* Size will be set by canvas */
-            width: fit-content;
-            max-width: 90vw; /* Limit max width */
-            margin: 0 auto; /* Center the container */
+            width: fit-content; /* Se ajustará al canvas */
+            max-width: 90vw;
+            margin: 20px auto; /* Más margen */
             border: 1px solid #ccc;
-            background-color: #eee; /* Background while loading */
-            min-height: 100px; /* Placeholder height */
+            background-color: #e0e0e0; /* Color de fondo mientras carga */
+            min-height: 100px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            overflow: hidden; /* Asegura que nada se salga si hay errores */
         }
 
         #pdf-canvas {
-            display: block; /* Remove extra space */
+            display: block; /* Importante para evitar espacio extra */
             max-width: 100%;
-            height: auto; /* Maintain aspect ratio via JS */
+            height: auto;
         }
 
         #interactive-overlay {
             position: absolute;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
-            display: grid;
-            /* Grid columns/rows will be set by JS */
+            width: 100%; /* Se ajustará por JS al tamaño del canvas */
+            height: 100%; /* Se ajustará por JS */
+            display: none; /* Oculto inicialmente, se muestra con JS */
+            grid-template-rows: repeat(var(--grid-rows, 1), 1fr); /* Usa variables CSS */
+            grid-template-columns: repeat(var(--grid-cols, 1), 1fr);
             cursor: crosshair;
-            /* Optional: makes grid lines visible for debugging */
-            /* background-color: rgba(255, 0, 0, 0.05); */
-            /* border: 2px solid red; */ /* Debugging border */
+            z-index: 10; /* Asegura que esté encima del canvas */
         }
 
         .grid-cell {
-            /* Optional: makes cell boundaries visible */
-            /* border: 1px solid rgba(0, 0, 255, 0.1); */
-            position: relative; /* Needed for absolute positioning of dots */
-            box-sizing: border-box; /* Include border in size */
-            /* background-color: rgba(0, 255, 0, 0.1); */ /* Debug cell background */
+            position: relative;
+            box-sizing: border-box;
+            /* Los estilos de depuración se aplicarán si los descomentas */
         }
 
         .grid-cell:hover {
-             background-color: rgba(200, 200, 255, 0.3); /* Highlight on hover */
+             background-color: rgba(100, 100, 255, 0.3); /* Azul más visible */
         }
 
         .dot {
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 10px; /* Size of the dot */
-            height: 10px; /* Size of the dot */
+            width: 12px;  /* Un poco más grande */
+            height: 12px; /* Un poco más grande */
             border-radius: 50%;
-            transform: translate(-50%, -50%); /* Center the dot */
-            pointer-events: none; /* Don't let dots interfere with clicks */
-            box-shadow: 0 0 2px rgba(0,0,0,0.5); /* Slight shadow */
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            box-shadow: 0 0 3px rgba(0,0,0,0.6); /* Sombra más marcada */
+            border: 1px solid rgba(255,255,255,0.5); /* Borde ligero */
         }
 
         .start-dot {
-            background-color: limegreen; /* Brighter green */
+            background-color: #2ecc71; /* Verde esmeralda */
         }
 
         .path-dot {
-            background-color: dodgerblue; /* Standard blue */
+            background-color: #3498db; /* Azul Peter River */
         }
 
-        #loading-message {
+        #loading-message, #error-message {
             display: none;
             margin-top: 10px;
-            color: #555;
-        }
-         #error-message {
-            display: none;
-            margin-top: 10px;
-            color: red;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
             font-weight: bold;
         }
-
+        #loading-message {
+             color: #3498db;
+             background-color: #eaf5ff;
+        }
+         #error-message {
+            color: #e74c3c; /* Rojo */
+            background-color: #fbecea;
+        }
 
         #instructions {
             margin-top: 15px;
@@ -105,42 +113,65 @@
             color: #555;
             max-width: 600px;
             text-align: center;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
+
+        /* --- ESTILOS DE DEPURACIÓN (DESCOMENTAR SI ES NECESARIO) --- */
+        /*
+        #interactive-overlay {
+            border: 3px solid red !important;
+            background-color: rgba(255, 0, 0, 0.1);
+        }
+        .grid-cell {
+            border: 1px solid blue !important;
+            min-height: 5px;
+            min-width: 5px;
+            background-color: rgba(0, 255, 0, 0.1);
+        }
+        */
+       /* --- FIN ESTILOS DE DEPURACIÓN --- */
+
     </style>
 </head>
 <body>
 
-    <h1>PDF Grid Marking Tool</h1>
+    <h1>PDF Grid Marking Tool (v2)</h1>
 
     <div id="controls">
-        <label for="pdfLoader">Load Grid PDF:</label>
+        <label for="pdfLoader">Cargar PDF:</label>
         <input type="file" id="pdfLoader" accept=".pdf">
-        <button id="resetButton">Reset Grid</button>
+        <button id="resetButton">Limpiar Marcas</button>
     </div>
 
-     <div id="loading-message">Loading and rendering PDF...</div>
-     <div id="error-message"></div>
+     <div id="loading-message">Cargando y renderizando PDF... por favor espere.</div>
+     <div id="error-message"></div> <!-- Para mostrar errores -->
 
     <div id="pdf-container">
         <canvas id="pdf-canvas"></canvas>
-        <div id="interactive-overlay">
-            <!-- Grid cells will be generated here by JavaScript -->
-        </div>
+        <div id="interactive-overlay"></div>
     </div>
 
     <div id="instructions">
-       <p>1. Load your grid PDF (ensure the grid is on the first page).</p>
-       <p>2. Click in a cell in the **top row** to set a green start point for that column. The start point will be copied down the column.</p>
-       <p>3. Click other cells in the **top row** (within the same column's square) to draw a blue path originating from the start point.</p>
-       <p>4. Use the Reset button to clear everything.</p>
-       <p><i>Note: Assumes the grid image within the PDF has 13 rows and 8 columns of squares. Alignment depends on the PDF structure.</i></p>
+       <p>1. Carga tu PDF (la rejilla debe estar en la primera página).</p>
+       <p>2. Clic en la <strong>fila superior</strong> para poner punto de inicio (verde). Se copiará abajo.</p>
+       <p>3. Otros clics en la <strong>fila superior</strong> para dibujar el camino (azul).</p>
+       <p>4. Usa 'Limpiar Marcas' para borrar.</p>
+       <p><i>Nota: Asume una rejilla de 13 filas y 8 columnas. La alineación depende del PDF. Revisa la consola (F12) si algo falla.</i></p>
     </div>
 
-    <script type="module"> // Use type="module" to allow import
-        // Import PDF.js - Ensure the path matches the script tag src
+    <script type="module">
+        // Asegúrate que esta ruta sea correcta si no usas el CDN directamente
         const pdfjsLib = window['pdfjs-dist/build/pdf'];
-        // Specify the worker source explicitly for broader compatibility
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '//mozilla.github.io/pdf.js/build/pdf.worker.mjs';
+        if (!pdfjsLib) {
+            console.error("¡Error crítico! PDF.js no parece estar cargado.");
+            displayError("No se pudo cargar la biblioteca PDF.js. Revisa la conexión a internet o la configuración del script.");
+        } else {
+             // Es buena práctica configurar el worker explícitamente
+             pdfjsLib.GlobalWorkerOptions.workerSrc = '//mozilla.github.io/pdf.js/build/pdf.worker.mjs';
+        }
 
         const pdfLoader = document.getElementById('pdfLoader');
         const pdfCanvas = document.getElementById('pdf-canvas');
@@ -151,34 +182,58 @@
         const loadingMessage = document.getElementById('loading-message');
         const errorMessage = document.getElementById('error-message');
 
-        // --- Configuration ---
+        // --- Configuración ---
         const GRID_ROWS = 13;
         const GRID_COLS = 8;
-        const MAX_RENDER_WIDTH = 800; // Max width in pixels to render the PDF canvas
+        const MAX_RENDER_WIDTH = 800;
         // ---------------------
 
         let startPoints = new Array(GRID_COLS).fill(null);
         let paths = Array.from({ length: GRID_COLS }, () => []);
-        let currentPdfDoc = null; // Store the loaded PDF document
+        let currentPdfDoc = null;
+
+        function displayError(message) {
+            console.error("Error mostrado al usuario:", message);
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            loadingMessage.style.display = 'none';
+            pdfCanvas.style.display = 'none'; // Oculta canvas si hay error
+            overlay.style.display = 'none';   // Oculta overlay
+            instructions.style.display = 'none'; // Oculta instrucciones
+        }
+
+        function clearError() {
+            errorMessage.textContent = '';
+            errorMessage.style.display = 'none';
+        }
 
 
         function createOverlayGrid(canvasWidth, canvasHeight) {
-            console.log(`Creating overlay grid for canvas size: ${canvasWidth}x${canvasHeight}`);
-            overlay.innerHTML = ''; // Clear previous grid
+            console.log(`[createOverlayGrid] Iniciando creación de rejilla para ${canvasWidth}x${canvasHeight}`);
+            overlay.innerHTML = ''; // Limpia rejilla anterior
             startPoints.fill(null);
             paths = Array.from({ length: GRID_COLS }, () => []);
 
-             // Ensure overlay matches canvas size explicitly
-             overlay.style.width = `${canvasWidth}px`;
-             overlay.style.height = `${canvasHeight}px`;
-             pdfContainer.style.width = `${canvasWidth}px`; // Adjust container size
-             pdfContainer.style.height = `${canvasHeight}px`;
+            if (!canvasWidth || !canvasHeight || canvasWidth <= 0 || canvasHeight <= 0) {
+                console.error("[createOverlayGrid] Dimensiones del canvas inválidas:", canvasWidth, canvasHeight);
+                displayError("Error interno: No se pudieron obtener las dimensiones correctas para crear la rejilla.");
+                return; // No continuar si no hay dimensiones
+            }
 
-            // Set overlay grid dimensions
-            overlay.style.gridTemplateRows = `repeat(${GRID_ROWS}, 1fr)`;
-            overlay.style.gridTemplateColumns = `repeat(${GRID_COLS}, 1fr)`;
+            // Ajusta explícitamente el tamaño del overlay para que coincida con el canvas
+            overlay.style.width = `${canvasWidth}px`;
+            overlay.style.height = `${canvasHeight}px`;
+            // También ajusta el contenedor si es necesario (aunque width: fit-content debería ayudar)
+            pdfContainer.style.width = `${canvasWidth}px`;
+            pdfContainer.style.height = `${canvasHeight}px`;
 
-            // Create individual grid cells
+            // Usa variables CSS para las dimensiones de la rejilla
+            overlay.style.setProperty('--grid-rows', GRID_ROWS);
+            overlay.style.setProperty('--grid-cols', GRID_COLS);
+            overlay.style.display = 'grid'; // <-- MUY IMPORTANTE: Muestra la rejilla AHORA
+
+            // Crea las celdas
+            let cellCount = 0;
             for (let r = 0; r < GRID_ROWS; r++) {
                 for (let c = 0; c < GRID_COLS; c++) {
                     const cell = document.createElement('div');
@@ -187,170 +242,158 @@
                     cell.dataset.col = c;
                     cell.addEventListener('click', handleCellClick);
                     overlay.appendChild(cell);
+                    cellCount++;
                 }
             }
-             console.log(`Created ${GRID_ROWS}x${GRID_COLS} grid overlay.`);
-             overlay.style.display = 'grid'; // Make overlay visible
+            console.log(`[createOverlayGrid] Rejilla creada con ${cellCount} celdas (${GRID_ROWS}x${GRID_COLS}). Overlay debería ser visible.`);
+
+            if (cellCount !== GRID_ROWS * GRID_COLS) {
+                 console.warn("[createOverlayGrid] ¡Advertencia! No se crearon todas las celdas esperadas.");
+            }
         }
 
         function handleCellClick(event) {
-            const cell = event.target;
+            const cell = event.currentTarget; // Usar currentTarget es más seguro
             const row = parseInt(cell.dataset.row);
             const col = parseInt(cell.dataset.col);
 
-            if (isNaN(row) || isNaN(col)) return;
+            if (isNaN(row) || isNaN(col)) {
+                 console.warn("Click en elemento sin data-row/col válidos:", event.target);
+                 return;
+            }
 
-            console.log(`Clicked cell: Row ${row}, Col ${col}`);
+            // console.log(`Click en celda: Fila ${row}, Col ${col}`); // Log menos verboso
 
-            if (row === 0) { // Interaction only starts in the first row
+            if (row === 0) { // Fila superior
                 if (startPoints[col] === null) {
-                    // Set Start Point
-                    console.log(`Setting start point for column ${col}`);
+                    // Poner Punto de Inicio
                     addDot(cell, 'start');
                     startPoints[col] = { row, col };
                     replicateStartPoint(col);
                 } else {
-                     // Add to Path
-                    if (cell === getCellElement(startPoints[col].row, startPoints[col].col)) {
-                         console.log(`Clicked on existing start point cell in Col ${col}, ignoring for path.`);
-                         return;
-                     }
-                     const existingPathDots = cell.querySelectorAll('.path-dot');
-                     if(existingPathDots.length === 0) {
-                        console.log(`Adding path point in column ${col} at Row ${row}`);
-                        addDot(cell, 'path');
-                        paths[col].push({ row, col });
-                     } else {
-                         console.log(`Path dot already exists in this cell (Col ${col}), ignoring.`);
+                     // Añadir a Camino (si no es la celda de inicio)
+                    if (cell !== getCellElement(startPoints[col].row, startPoints[col].col)) {
+                         const existingPathDots = cell.querySelectorAll('.path-dot');
+                         if(existingPathDots.length === 0) { // Evita duplicados exactos
+                            addDot(cell, 'path');
+                            paths[col].push({ row, col });
+                         }
                      }
                 }
-            } else {
-                console.log(`Clicked outside first row (Row ${row}), no action.`);
             }
+            // Clics en otras filas no hacen nada activamente
         }
 
          function addDot(cellElement, type) {
             if (!cellElement) return;
-            const existingDots = cellElement.querySelectorAll(`.dot.${type}-dot`);
-             if (existingDots.length > 0 && type !== 'path') { // Allow multiple path dots potentially, but only one start
-                 console.log(`Start dot already exists in cell R${cellElement.dataset.row} C${cellElement.dataset.col}. Skipping.`);
-                return;
+             // Previene múltiples puntos de inicio en la misma celda
+             if (type === 'start' && cellElement.querySelector('.start-dot')) {
+                 return;
              }
-
             const dot = document.createElement('div');
             dot.classList.add('dot', `${type}-dot`);
             cellElement.appendChild(dot);
-            // console.log(`Added ${type} dot to cell R${cellElement.dataset.row} C${cellElement.dataset.col}`);
         }
 
         function replicateStartPoint(colIndex) {
-            // console.log(`Replicating start point down column ${colIndex}`);
             for (let r = 1; r < GRID_ROWS; r++) {
                 const targetCell = getCellElement(r, colIndex);
                 if (targetCell) {
                      addDot(targetCell, 'start');
-                } else {
-                    // console.warn(`Could not find cell for replication at Row ${r}, Col ${colIndex}`);
                 }
             }
         }
 
         function getCellElement(row, col) {
+           // Selector más específico y robusto
            return overlay.querySelector(`.grid-cell[data-row="${row}"][data-col="${col}"]`);
         }
 
         function resetGrid() {
-            console.log("Resetting grid.");
+            console.log("Limpiando marcas de la rejilla.");
             startPoints.fill(null);
             paths = Array.from({ length: GRID_COLS }, () => []);
+            // Borra solo los puntos, no las celdas
             const allDots = overlay.querySelectorAll('.dot');
             allDots.forEach(dot => dot.remove());
+             clearError(); // Limpia también mensajes de error
         }
 
-        function displayError(message) {
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-            loadingMessage.style.display = 'none';
-             pdfCanvas.style.display = 'none';
-             overlay.style.display = 'none';
-        }
-
-        // --- PDF Loading and Rendering ---
+        // --- Carga y Renderizado de PDF ---
         async function loadAndRenderPdf(file) {
-            resetGrid(); // Clear previous state
-            pdfCanvas.style.display = 'none'; // Hide canvas during load
-            overlay.style.display = 'none'; // Hide overlay
-            errorMessage.style.display = 'none'; // Hide old errors
-            loadingMessage.style.display = 'block'; // Show loading message
-            currentPdfDoc = null; // Clear previous doc reference
+            if (!pdfjsLib) {
+                displayError("PDF.js no está disponible. No se puede cargar el PDF.");
+                return;
+            }
+            resetGrid(); // Limpia estado anterior
+            clearError(); // Limpia errores anteriores
+            pdfCanvas.style.display = 'none';
+            overlay.style.display = 'none';
+            loadingMessage.style.display = 'block';
+            currentPdfDoc = null;
 
             const reader = new FileReader();
 
             reader.onload = async (e) => {
                 const typedarray = new Uint8Array(e.target.result);
                 try {
+                    console.log("[loadAndRenderPdf] Intentando cargar documento PDF...");
                     const loadingTask = pdfjsLib.getDocument({ data: typedarray });
                     currentPdfDoc = await loadingTask.promise;
-                    console.log('PDF loaded');
+                    console.log(`[loadAndRenderPdf] PDF cargado: ${currentPdfDoc.numPages} página(s)`);
 
-                    // Fetch the first page
                     const pageNumber = 1;
+                    if (pageNumber > currentPdfDoc.numPages) {
+                         throw new Error(`El PDF solo tiene ${currentPdfDoc.numPages} páginas, no se puede acceder a la página ${pageNumber}.`);
+                    }
+                    console.log(`[loadAndRenderPdf] Obteniendo página ${pageNumber}...`);
                     const page = await currentPdfDoc.getPage(pageNumber);
-                    console.log('Page 1 loaded');
+                    console.log('[loadAndRenderPdf] Página obtenida.');
 
-                    // --- Calculate scale and viewport ---
-                    const desiredWidth = MAX_RENDER_WIDTH;
+                    // --- Calcular escala y viewport ---
                     const viewportDefault = page.getViewport({ scale: 1 });
-                    const scale = desiredWidth / viewportDefault.width;
+                    const scale = MAX_RENDER_WIDTH / viewportDefault.width;
                     const viewport = page.getViewport({ scale: scale });
-                    console.log(`Calculated scale: ${scale.toFixed(3)} for desired width ${desiredWidth}`);
-                    console.log(`Viewport dimensions: ${viewport.width}x${viewport.height}`);
+                    console.log(`[loadAndRenderPdf] Viewport calculado: ${viewport.width.toFixed(0)}x${viewport.height.toFixed(0)} (Escala: ${scale.toFixed(3)})`);
 
-
-                    // Prepare canvas using PDF page dimensions
+                    // Preparar canvas
                     const context = pdfCanvas.getContext('2d');
                     pdfCanvas.height = viewport.height;
                     pdfCanvas.width = viewport.width;
-                    pdfCanvas.style.display = 'block'; // Show canvas now
+                    pdfCanvas.style.display = 'block'; // Mostrar canvas
 
-                     // Adjust container size AFTER canvas size is set
-                    pdfContainer.style.width = `${viewport.width}px`;
-                    pdfContainer.style.height = `${viewport.height}px`;
-
-
-                    // Render PDF page into canvas context
-                    const renderContext = {
-                        canvasContext: context,
-                        viewport: viewport
-                    };
+                    // Renderizar PDF
+                    const renderContext = { canvasContext: context, viewport: viewport };
+                    console.log('[loadAndRenderPdf] Iniciando renderizado de la página...');
                     const renderTask = page.render(renderContext);
                     await renderTask.promise;
-                    console.log('Page rendered');
+                    console.log('[loadAndRenderPdf] Página renderizada con éxito.');
 
-                    // --- Create the interactive grid OVER the rendered canvas ---
-                    createOverlayGrid(viewport.width, viewport.height);
+                    // --- CREAR LA REJILLA INTERACTIVA DESPUÉS DEL RENDERIZADO ---
+                    // Pasamos las dimensiones EXACTAS del canvas renderizado
+                    createOverlayGrid(pdfCanvas.width, pdfCanvas.height);
 
-                    loadingMessage.style.display = 'none'; // Hide loading message
-                    instructions.style.display = 'block'; // Show instructions
-
+                    loadingMessage.style.display = 'none';
+                    instructions.style.display = 'block';
 
                 } catch (reason) {
-                    // PDF loading/rendering error
-                    console.error('Error loading or rendering PDF:', reason);
-                    displayError(`Error: Could not load or render PDF. ${reason.message || reason}`);
-                    currentPdfDoc = null; // Ensure reset
+                    console.error('[loadAndRenderPdf] ¡Error durante carga/renderizado!', reason);
+                    displayError(`Error procesando PDF: ${reason.message || reason}`);
+                    currentPdfDoc = null; // Resetea
+                    pdfCanvas.style.display = 'none'; // Oculta si falla
+                    overlay.style.display = 'none';
                 }
             };
 
              reader.onerror = (e) => {
-                 console.error("FileReader error:", e);
-                 displayError("Error reading the PDF file.");
+                 console.error("Error del FileReader:", e);
+                 displayError("Error al leer el archivo PDF seleccionado.");
                  loadingMessage.style.display = 'none';
              }
 
+            console.log("[loadAndRenderPdf] Leyendo archivo como ArrayBuffer...");
             reader.readAsArrayBuffer(file);
         }
-
 
         // --- Event Listeners ---
         pdfLoader.addEventListener('change', (event) => {
@@ -358,18 +401,25 @@
             if (file && file.type === "application/pdf") {
                 loadAndRenderPdf(file);
             } else if (file) {
-                 displayError("Please select a valid PDF file.");
+                 displayError("Por favor, selecciona un archivo PDF válido.");
                  resetGrid();
                  pdfCanvas.style.display = 'none';
                  overlay.style.display = 'none';
                  instructions.style.display = 'none';
+                 pdfLoader.value = ''; // Resetea el input de archivo
             }
         });
 
         resetButton.addEventListener('click', resetGrid);
 
-         // Initial state
-         instructions.style.display = 'none';
+         // Estado inicial
+         instructions.style.display = 'none'; // Oculto hasta cargar PDF
+
+         // Mensaje inicial si PDF.js falló al cargar al inicio
+         if (!pdfjsLib) {
+              errorMessage.textContent = "Error crítico: Falta la biblioteca PDF.js.";
+              errorMessage.style.display = 'block';
+         }
 
     </script>
 
